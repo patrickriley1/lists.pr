@@ -1,0 +1,9 @@
+:root {
+  --primary: #00bbff;
+  --secondary: #6c757d;
+  --dark: #121212;
+  --light: #ffffff;
+
+  background-color: var(--dark);
+  font-family: 'jetbrains mono', monospace;
+}

@@ -9,6 +9,7 @@ function App() {
   const [token, setToken] = useState("");
   const [user, setUser] = useState(null);
   const [search, setSearch] = useState("");
+  const [albums, setAlbums] = useState([]);
 
   // ---------- PKCE HELPERS ----------
 

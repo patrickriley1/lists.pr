@@ -93,17 +93,19 @@ function App() {
       });
   }, []);
 
-  function fetchUser() {
-  fetch("https://api.spotify.com/v1/me", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+  useEffect(() => {
+    if (!token) return;
+
+    fetch("https://api.spotify.com/v1/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         setUser(data);
       });
-  }
+  }, [token]);
 
   function searchAlbums() {
     fetch(`https://api.spotify.com/v1/search?q=${search}&type=album`, {
@@ -131,7 +133,7 @@ function App() {
 
       <div className="body">
         {!token ? (
-          <button onClick={() => { login(); fetchUser(); }}>Login to Spotify</button>
+          <button onClick={() => {login}}>Login to Spotify</button>
         ) : (
             <p>{user.display_name}</p>
         )}

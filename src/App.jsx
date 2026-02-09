@@ -7,6 +7,7 @@ function App() {
   const authEndpoint = "https://accounts.spotify.com/authorize";
 
   const [token, setToken] = useState("");
+  const [user, setUser] = useState(null);
 
   // ---------- PKCE HELPERS ----------
 
@@ -84,6 +85,21 @@ function App() {
       });
   }, []);
 
+  useEffect(() => {
+  if (!token) return;
+
+  fetch("https://api.spotify.com/v1/me", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      setUser(data);
+    });
+  }, [token]);
+
+
   // ---------- UI ----------
 
   return (
@@ -98,6 +114,9 @@ function App() {
           <button onClick={login}>Login to Spotify</button>
         ) : (
           <p>Logged in. Token received.</p>
+        )}
+        {user && (
+          <p>{user.display_name}</p>
         )}
       </div>
     </div>

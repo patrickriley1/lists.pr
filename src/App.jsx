@@ -153,15 +153,15 @@ function App() {
         <button onClick={searchAlbums}>
           Search
         </button>
-
-        {albums.map((album) => (
-          <div key={album.id}>
-            <img src={album.images[0]?.url} width="100" />
-            <p>{album.name}</p>
-            <p>{album.artists[0].name}</p>
-          </div>
-        ))}
-
+        <div className="albumResults">
+          {albums.map((album) => (
+            <div key={album.id}>
+              <img src={album.images[0]?.url} width="100" />
+              <p>{album.name}</p>
+              <p>{album.artists[0].name}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

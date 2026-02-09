@@ -66,6 +66,9 @@
   flex-direction: row;
   align-items: center;
   gap: 20px;
+  border-radius: 10px;
+  padding: 10px;
+  transition: all 0.3s ease;
 }
 
 .albumInfo {
@@ -77,6 +80,4 @@
 .albumItem:hover {
   background-color: var(--secondary);
   cursor: pointer;
-  border-radius: 10px;
-  padding: 10px;
 }

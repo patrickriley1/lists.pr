@@ -7,7 +7,13 @@ function App() {
   const authEndpoint = "https://accounts.spotify.com/authorize";
 
   const [token, setToken] = useState("");
+
+
+  //user info variables
   const [user, setUser] = useState(null);
+
+
+  //album search variables
   const [search, setSearch] = useState("");
   const [albums, setAlbums] = useState([]);
 
@@ -87,9 +93,7 @@ function App() {
       });
   }, []);
 
-  useEffect(() => {
-  if (!token) return;
-
+  function fetchUser() {
   fetch("https://api.spotify.com/v1/me", {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -99,17 +103,7 @@ function App() {
       .then((data) => {
         setUser(data);
       });
-  }, [token]);
-
-  fetch("https://api.spotify.com/v1/search?q=radiohead&type=album", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      console.log(data.albums.items);
-    });
+  }
 
   function searchAlbums() {
     fetch(`https://api.spotify.com/v1/search?q=${search}&type=album`, {
@@ -139,20 +133,20 @@ function App() {
         {!token ? (
           <button onClick={login}>Login to Spotify</button>
         ) : (
-          <p>Logged in. Token received.</p>
+          <>
+            <p>{user.display_name}</p>
+          </>
         )}
-        {user && (
-          <p>{user.display_name}</p>
-        )}
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search for an album"
-        />
-
-        <button onClick={searchAlbums}>
-          Search
-        </button>
+        <div className="albumSearch">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search for an album"
+          />
+          <button onClick={searchAlbums}>
+            Search
+          </button>
+        </div>
         <div className="albumResults">
           {albums.map((album) => (
             <div key={album.id} className="albumItem">

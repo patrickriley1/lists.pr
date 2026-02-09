@@ -99,6 +99,30 @@ function App() {
     });
   }, [token]);
 
+  fetch("https://api.spotify.com/v1/search?q=radiohead&type=album", {
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+})
+  .then((res) => res.json())
+  .then((data) => {
+    console.log(data.albums.items);
+  });
+
+  function searchAlbums() {
+  fetch(`https://api.spotify.com/v1/search?q=${search}&type=album`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      setAlbums(data.albums.items);
+    });
+}
+
+
+
 
   // ---------- UI ----------
 
@@ -118,6 +142,24 @@ function App() {
         {user && (
           <p>{user.display_name}</p>
         )}
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search for an album"
+        />
+
+        <button onClick={searchAlbums}>
+          Search
+        </button>
+
+        {albums.map((album) => (
+          <div key={album.id}>
+            <img src={album.images[0]?.url} width="100" />
+            <p>{album.name}</p>
+            <p>{album.artists[0].name}</p>
+          </div>
+        ))}
+
       </div>
     </div>
   );

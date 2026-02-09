@@ -1,7 +1,7 @@
 :root {
   --primary: #00bbff;
   --secondary: #6c757d;
-  --dark: #121212;
+  --dark: #000000;
   --light: #ffffff;
 
   background-color: var(--dark);

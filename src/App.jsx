@@ -131,11 +131,9 @@ function App() {
 
       <div className="body">
         {!token ? (
-          <button onClick={login}>Login to Spotify</button>
+          <button onClick={() => { login(); fetchUser(); }}>Login to Spotify</button>
         ) : (
-          <>
             <p>{user.display_name}</p>
-          </>
         )}
         <div className="albumSearch">
           <input

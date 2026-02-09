@@ -8,7 +8,13 @@ function App() {
   const authEndpoint = "https://accounts.spotify.com/authorize";
   const responseType = "code";
 
+  const [code, setCode] = useState("");
   const [token, setToken] = useState("");
+
+  useEffect(() => {
+    setCode(new URLSearchParams(window.location.search).get("code"));
+  }, [])
+
 
   return (
     <div>
@@ -18,6 +24,7 @@ function App() {
       </div>
       <div className='body'>
         <a href={`${authEndpoint}?client_id=${clientID}&redirect_uri=${redirectURI}&response_type=${responseType}`}>Login to Spotify</a>
+        <p>{code}</p>
       </div>
     </div>
   )

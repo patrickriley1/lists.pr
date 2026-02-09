@@ -1,96 +1,107 @@
-import { useEffect, useState } from 'react'
-import './App.css'
-
+import { useEffect, useState } from "react";
+import "./App.css";
 
 function App() {
   const clientID = "52ef8393bb03454a8d33998beacb0927";
   const redirectURI = "https://lists-pr.vercel.app";
   const authEndpoint = "https://accounts.spotify.com/authorize";
-  const responseType = "code";
 
-  const [code, setCode] = useState("");
   const [token, setToken] = useState("");
-  
+
+  // ---------- PKCE HELPERS ----------
+
   function generateCodeVerifier(length = 64) {
-  const possible =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+    const possible =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
-  const randomValues = crypto.getRandomValues(new Uint8Array(length));
+    const randomValues = crypto.getRandomValues(new Uint8Array(length));
 
-  return Array.from(randomValues)
-    .map((x) => possible[x % possible.length])
-    .join("");
+    return Array.from(randomValues)
+      .map((x) => possible[x % possible.length])
+      .join("");
   }
 
-  const codeVerifier = generateCodeVerifier();
+  async function generateCodeChallenge(verifier) {
+    const data = new TextEncoder().encode(verifier);
+    const digest = await crypto.subtle.digest("SHA-256", data);
 
-  async function generateCodeChallenge(codeVerifier) {
-  // Step 1: convert string to bytes
-  const encoder = new TextEncoder();
-  const data = encoder.encode(codeVerifier);
+    const base64 = btoa(
+      String.fromCharCode(...new Uint8Array(digest))
+    );
 
-  // Step 2: hash with SHA-256
-  const digest = await crypto.subtle.digest("SHA-256", data);
-
-  // Step 3: convert to base64url
-  const base64 = btoa(
-    String.fromCharCode(...new Uint8Array(digest))
-  );
-
-  // Make it URL-safe
-  return base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    return base64
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
   }
 
-  const codeChallenge = generateCodeChallenge(codeVerifier);
+  // ---------- LOGIN FUNCTION ----------
+
+  async function login() {
+    const verifier = generateCodeVerifier();
+    localStorage.setItem("spotify_verifier", verifier);
+
+    const challenge = await generateCodeChallenge(verifier);
+
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: clientID,
+      redirect_uri: redirectURI,
+      code_challenge_method: "S256",
+      code_challenge: challenge,
+      scope: "user-read-private user-read-email",
+    });
+
+    window.location.href = `${authEndpoint}?${params.toString()}`;
+  }
+
+  // ---------- HANDLE REDIRECT + TOKEN EXCHANGE ----------
 
   useEffect(() => {
-    if (code) {
-      fetch(`https://accounts.spotify.com/api/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code: code,
-          code_verifier: codeVerifier,
-          redirect_uri: redirectURI,
-          client_id: clientID,
-        }),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          setToken(data.access_token);
-        });
-    }
-  }, [code]);
+    const code = new URLSearchParams(window.location.search).get("code");
 
-  useEffect(() => {
-    setCode(new URLSearchParams(window.location.search).get("code"));
-  }, [])
+    if (!code) return;
 
-  useEffect(() => {
-    if(code) {
+    const verifier = localStorage.getItem("spotify_verifier");
 
-    }
-  }, [code]);
+    fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: clientID,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectURI,
+        code_verifier: verifier,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setToken(data.access_token);
+        window.history.replaceState({}, document.title, "/");
+      });
+  }, []);
+
+  // ---------- UI ----------
 
   return (
     <div>
-      <div className='header'>
+      <div className="header">
         <h1>lists.pr</h1>
-        <div className='verticalLineSmall'></div>
+        <div className="verticalLineSmall"></div>
       </div>
-      <div className='body'>
-        <a href={`${authEndpoint}?client_id=${clientID}&redirect_uri=${redirectURI}&response_type=${responseType}`}>Login to Spotify</a>
-        <p>{code}</p>
-        <p>{token}</p>
+
+      <div className="body">
+        {!token ? (
+          <button onClick={login}>Login to Spotify</button>
+        ) : (
+          <p>Logged in. Token received.</p>
+        )}
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

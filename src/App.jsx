@@ -10,7 +10,7 @@ function App() {
 
 
   //user info variables
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState("");
 
 
   //album search variables

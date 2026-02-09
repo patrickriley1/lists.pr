@@ -6,7 +6,7 @@ function App() {
   const clientID = "52ef8393bb03454a8d33998beacb0927";
   const redirectURI = "https://lists-pr.vercel.app";
   const authEndpoint = "https://accounts.spotify.com/authorize";
-  const responseType = "token";
+  const responseType = "code";
 
   const [token, setToken] = useState("");
 

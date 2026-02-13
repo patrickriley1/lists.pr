@@ -17,6 +17,9 @@ function App() {
   const [search, setSearch] = useState("");
   const [albums, setAlbums] = useState([]);
 
+  // User interaction variables
+  const [selectedAlbums, setSelectedAlbums] = useState([]);
+
   // ---------- PKCE HELPERS ----------
 
   function generateCodeVerifier(length = 64) {
@@ -149,7 +152,13 @@ function App() {
         </div>
         <div className="albumResults">
           {albums.map((album) => (
-            <div key={album.id} className="albumItem">
+            <div key={album.id} className="albumItem" onClick={() => {
+              if (selectedAlbums.includes(album.id)) {
+                setSelectedAlbums(selectedAlbums.filter(id => id !== album.id));
+              } else {
+                setSelectedAlbums([...selectedAlbums, album.id]);
+              }
+            }}>
               <img src={album.images[0]?.url} width="100" />
               <div className="albumInfo">
                 <p>{album.name}</p>
@@ -157,6 +166,15 @@ function App() {
               </div>
             </div>
           ))}
+        </div>
+        <div>
+          {selectedAlbums.map((album) => {
+            <div className="albumItem" key={album.id}>
+              <img src={album.images[0]?.url} width="50" />
+              <p>{album.name}</p>
+              <p>{album.artists[0].name}</p>
+            </div>
+          })}
         </div>
       </div>
     </div>

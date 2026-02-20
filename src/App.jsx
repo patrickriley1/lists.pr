@@ -26,6 +26,28 @@ function App() {
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
+  const [expandedAlbumId, setExpandedAlbumId] = useState(null);
+  const [albumDetailsById, setAlbumDetailsById] = useState({});
+  const [albumRatings, setAlbumRatings] = useState(() => {
+    const savedRatings = localStorage.getItem("album_ratings");
+    if (!savedRatings) return {};
+
+    try {
+      return JSON.parse(savedRatings);
+    } catch {
+      return {};
+    }
+  });
+  const [savedAlbums, setSavedAlbums] = useState(() => {
+    const storedAlbums = localStorage.getItem("saved_albums");
+    if (!storedAlbums) return [];
+
+    try {
+      return JSON.parse(storedAlbums);
+    } catch {
+      return [];
+    }
+  });
 
   // ---------- PKCE HELPERS ----------
 
@@ -119,6 +141,14 @@ function App() {
       });
   }, [token]);
 
+  useEffect(() => {
+    localStorage.setItem("album_ratings", JSON.stringify(albumRatings));
+  }, [albumRatings]);
+
+  useEffect(() => {
+    localStorage.setItem("saved_albums", JSON.stringify(savedAlbums));
+  }, [savedAlbums]);
+
   function searchSpotify() {
     if (!search.trim()) return;
 
@@ -131,16 +161,80 @@ function App() {
       .then((data) => {
         if (searchType === "album") {
           setResults(data.albums?.items || []);
+          setExpandedAlbumId(null);
           return;
         }
 
         if (searchType === "track") {
           setResults(data.tracks?.items || []);
+          setExpandedAlbumId(null);
           return;
         }
 
         setResults(data.artists?.items || []);
+        setExpandedAlbumId(null);
       });
+  }
+
+  function toggleAlbumExpand(albumId) {
+    if (expandedAlbumId === albumId) {
+      setExpandedAlbumId(null);
+      return;
+    }
+
+    setExpandedAlbumId(albumId);
+
+    if (albumDetailsById[albumId]) return;
+
+    setAlbumDetailsById((prev) => ({
+      ...prev,
+      [albumId]: { loading: true, tracks: [], releaseDate: "" },
+    }));
+
+    fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setAlbumDetailsById((prev) => ({
+          ...prev,
+          [albumId]: {
+            loading: false,
+            tracks: data.tracks?.items || [],
+            releaseDate: data.release_date || "",
+          },
+        }));
+      });
+  }
+
+  function rateAlbum(albumId) {
+    const currentRating = albumRatings[albumId] ?? "";
+    const newRating = window.prompt("Rate this album from 1 to 10", currentRating);
+
+    if (newRating === null) return;
+
+    const parsedRating = Number(newRating);
+    if (Number.isNaN(parsedRating) || parsedRating < 1 || parsedRating > 10) return;
+
+    setAlbumRatings((prev) => ({
+      ...prev,
+      [albumId]: parsedRating,
+    }));
+  }
+
+  function addAlbumToList(album) {
+    if (savedAlbums.some((savedAlbum) => savedAlbum.id === album.id)) return;
+
+    setSavedAlbums((prev) => [
+      ...prev,
+      {
+        id: album.id,
+        name: album.name,
+        artists: album.artists?.map((artist) => artist.name).join(", "),
+      },
+    ]);
   }
 
 
@@ -169,6 +263,7 @@ function App() {
                 onClick={() => {
                   setSearchType("album");
                   setResults([]);
+                  setExpandedAlbumId(null);
                 }}
               >
                 Album Search
@@ -178,6 +273,7 @@ function App() {
                 onClick={() => {
                   setSearchType("track");
                   setResults([]);
+                  setExpandedAlbumId(null);
                 }}
               >
                 Song Search
@@ -187,6 +283,7 @@ function App() {
                 onClick={() => {
                   setSearchType("artist");
                   setResults([]);
+                  setExpandedAlbumId(null);
                 }}
               >
                 Artist Search
@@ -208,26 +305,81 @@ function App() {
               </button>
             </div>
             <div className="resultsList">
-              {results.map((item) => (
-                <div key={item.id} className="resultItem">
-                  <img
-                    src={
-                      searchType === "track"
-                        ? item.album?.images?.[0]?.url
-                        : item.images?.[0]?.url
-                    }
-                    width="80"
-                  />
-                  <div className="resultInfo">
-                    <p>{item.name}</p>
-                    <p>
-                      {searchType === "artist"
-                        ? "Artist"
-                        : item.artists?.map((artist) => artist.name).join(", ")}
-                    </p>
+              {results.map((item) => {
+                const isAlbum = searchType === "album";
+                const isExpanded = isAlbum && expandedAlbumId === item.id;
+                const details = albumDetailsById[item.id];
+                const releaseYear = details?.releaseDate
+                  ? details.releaseDate.slice(0, 4)
+                  : item.release_date?.slice(0, 4);
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`resultItem ${isExpanded ? "expanded" : ""}`}
+                    onClick={() => {
+                      if (isAlbum) {
+                        toggleAlbumExpand(item.id);
+                      }
+                    }}
+                  >
+                    <div className="resultMain">
+                      <img
+                        src={
+                          searchType === "track"
+                            ? item.album?.images?.[0]?.url
+                            : item.images?.[0]?.url
+                        }
+                        width="80"
+                      />
+                      <div className="resultInfo">
+                        <p>{item.name}</p>
+                        <p>
+                          {searchType === "artist"
+                            ? "Artist"
+                            : item.artists?.map((artist) => artist.name).join(", ")}
+                        </p>
+                      </div>
+                    </div>
+
+                    {isExpanded ? (
+                      <div className="albumExpanded">
+                        <p>Released: {releaseYear || "Unknown"}</p>
+                        <div className="albumActions">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              rateAlbum(item.id);
+                            }}
+                          >
+                            {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addAlbumToList(item);
+                            }}
+                          >
+                            {savedAlbums.some((savedAlbum) => savedAlbum.id === item.id)
+                              ? "Added"
+                              : "Add to List"}
+                          </button>
+                        </div>
+                        <p>Tracklist</p>
+                        {details?.loading ? (
+                          <p>Loading tracks...</p>
+                        ) : (
+                          <ol className="trackList">
+                            {(details?.tracks || []).map((track) => (
+                              <li key={track.id || track.name}>{track.name}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ function App() {
   const clientID = "52ef8393bb03454a8d33998beacb0927";
   const redirectURI = "https://lists-pr.vercel.app";
   const authEndpoint = "https://accounts.spotify.com/authorize";
+  const apiBaseURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   const [token, setToken] = useState(() => localStorage.getItem("spotify_token") || "");
 
@@ -28,25 +29,19 @@ function App() {
   const [results, setResults] = useState([]);
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
-  const [albumRatings, setAlbumRatings] = useState(() => {
-    const savedRatings = localStorage.getItem("album_ratings");
-    if (!savedRatings) return {};
-
-    try {
-      return JSON.parse(savedRatings);
-    } catch {
-      return {};
-    }
+  const [albumRatings, setAlbumRatings] = useState({});
+  const [savedAlbums, setSavedAlbums] = useState([]);
+  const [appUserId, setAppUserId] = useState(() => {
+    const savedAppUserId = localStorage.getItem("app_user_id");
+    if (!savedAppUserId) return null;
+    const parsedId = Number(savedAppUserId);
+    return Number.isNaN(parsedId) ? null : parsedId;
   });
-  const [savedAlbums, setSavedAlbums] = useState(() => {
-    const storedAlbums = localStorage.getItem("saved_albums");
-    if (!storedAlbums) return [];
-
-    try {
-      return JSON.parse(storedAlbums);
-    } catch {
-      return [];
-    }
+  const [defaultListId, setDefaultListId] = useState(() => {
+    const savedDefaultListId = localStorage.getItem("default_list_id");
+    if (!savedDefaultListId) return null;
+    const parsedId = Number(savedDefaultListId);
+    return Number.isNaN(parsedId) ? null : parsedId;
   });
 
   // ---------- PKCE HELPERS ----------
@@ -142,12 +137,114 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    localStorage.setItem("album_ratings", JSON.stringify(albumRatings));
-  }, [albumRatings]);
+    if (appUserId) {
+      localStorage.setItem("app_user_id", String(appUserId));
+      return;
+    }
+
+    localStorage.removeItem("app_user_id");
+  }, [appUserId]);
 
   useEffect(() => {
-    localStorage.setItem("saved_albums", JSON.stringify(savedAlbums));
-  }, [savedAlbums]);
+    if (defaultListId) {
+      localStorage.setItem("default_list_id", String(defaultListId));
+      return;
+    }
+
+    localStorage.removeItem("default_list_id");
+  }, [defaultListId]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    fetch(`${apiBaseURL}/api/users/upsert`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        spotify_id: user.id,
+        display_name: user.display_name,
+        email: user.email,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to upsert user");
+        }
+        return res.json();
+      })
+      .then((dbUser) => {
+        setAppUserId(dbUser.id);
+      })
+      .catch((error) => {
+        console.error("Failed to sync user with backend", error);
+      });
+  }, [apiBaseURL, user]);
+
+  useEffect(() => {
+    if (!appUserId) return;
+
+    Promise.all([
+      fetch(`${apiBaseURL}/api/ratings/${appUserId}`),
+      fetch(`${apiBaseURL}/api/lists/${appUserId}`),
+    ])
+      .then(async ([ratingsRes, listsRes]) => {
+        const ratingsData = ratingsRes.ok ? await ratingsRes.json() : [];
+        const listsData = listsRes.ok ? await listsRes.json() : [];
+        return { ratingsData, listsData };
+      })
+      .then(({ ratingsData, listsData }) => {
+        const ratingsMap = ratingsData.reduce((acc, ratingRow) => {
+          acc[ratingRow.album_id] = ratingRow.rating;
+          return acc;
+        }, {});
+        setAlbumRatings(ratingsMap);
+
+        const preferredList = listsData.find((list) => list.name === "My List") || listsData[0];
+        if (!preferredList) {
+          setDefaultListId(null);
+          setSavedAlbums([]);
+          return;
+        }
+
+        setDefaultListId(preferredList.id);
+        setSavedAlbums(
+          (preferredList.items || []).map((item) => ({
+            id: item.album_id,
+            name: item.album_name,
+            artists: item.artist_name || "",
+          }))
+        );
+      })
+      .catch((error) => {
+        console.error("Failed to hydrate user data", error);
+      });
+  }, [apiBaseURL, appUserId]);
+
+  async function ensureDefaultList() {
+    if (!appUserId) return null;
+    if (defaultListId) return defaultListId;
+
+    const response = await fetch(`${apiBaseURL}/api/lists`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: appUserId,
+        name: "My List",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create default list");
+    }
+
+    const list = await response.json();
+    setDefaultListId(list.id);
+    return list.id;
+  }
 
   function searchSpotify() {
     if (!search.trim()) return;
@@ -209,7 +306,9 @@ function App() {
       });
   }
 
-  function rateAlbum(albumId) {
+  async function rateAlbum(albumId) {
+    if (!appUserId) return;
+
     const currentRating = albumRatings[albumId] ?? "";
     const newRating = window.prompt("Rate this album from 1 to 10", currentRating);
 
@@ -218,14 +317,46 @@ function App() {
     const parsedRating = Number(newRating);
     if (Number.isNaN(parsedRating) || parsedRating < 1 || parsedRating > 10) return;
 
+    const response = await fetch(`${apiBaseURL}/api/ratings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: appUserId,
+        album_id: albumId,
+        rating: parsedRating,
+      }),
+    });
+
+    if (!response.ok) return;
+
     setAlbumRatings((prev) => ({
       ...prev,
       [albumId]: parsedRating,
     }));
   }
 
-  function addAlbumToList(album) {
+  async function addAlbumToList(album) {
+    if (!appUserId) return;
     if (savedAlbums.some((savedAlbum) => savedAlbum.id === album.id)) return;
+
+    const targetListId = await ensureDefaultList();
+    if (!targetListId) return;
+
+    const response = await fetch(`${apiBaseURL}/api/lists/${targetListId}/items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        album_id: album.id,
+        album_name: album.name,
+        artist_name: album.artists?.map((artist) => artist.name).join(", "),
+      }),
+    });
+
+    if (!response.ok) return;
 
     setSavedAlbums((prev) => [
       ...prev,
@@ -349,7 +480,7 @@ function App() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              rateAlbum(item.id);
+                              void rateAlbum(item.id);
                             }}
                           >
                             {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
@@ -357,7 +488,7 @@ function App() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              addAlbumToList(item);
+                              void addAlbumToList(item);
                             }}
                           >
                             {savedAlbums.some((savedAlbum) => savedAlbum.id === item.id)

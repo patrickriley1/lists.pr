@@ -8,9 +8,6 @@ function App() {
   const apiBaseURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   const [token, setToken] = useState(() => localStorage.getItem("spotify_token") || "");
-
-
-  //user info variables
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("spotify_user");
     if (!savedUser) return "";
@@ -22,6 +19,25 @@ function App() {
     }
   });
 
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem("app_auth_token") || "");
+  const [authUser, setAuthUser] = useState(() => {
+    const savedAuthUser = localStorage.getItem("app_auth_user");
+    if (!savedAuthUser) return null;
+
+    try {
+      return JSON.parse(savedAuthUser);
+    } catch {
+      return null;
+    }
+  });
+  const [linkedSpotifyUserId, setLinkedSpotifyUserId] = useState(() => {
+    const parsed = Number(localStorage.getItem("linked_spotify_user_id"));
+    return Number.isNaN(parsed) ? null : parsed;
+  });
+
+  const [authMode, setAuthMode] = useState("login");
+  const [authForm, setAuthForm] = useState({ username: "", password: "" });
+  const [authError, setAuthError] = useState("");
 
   // Search variables
   const [search, setSearch] = useState("");
@@ -31,18 +47,37 @@ function App() {
   const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
   const [savedAlbums, setSavedAlbums] = useState([]);
-  const [appUserId, setAppUserId] = useState(() => {
-    const savedAppUserId = localStorage.getItem("app_user_id");
-    if (!savedAppUserId) return null;
-    const parsedId = Number(savedAppUserId);
-    return Number.isNaN(parsedId) ? null : parsedId;
-  });
   const [defaultListId, setDefaultListId] = useState(() => {
-    const savedDefaultListId = localStorage.getItem("default_list_id");
-    if (!savedDefaultListId) return null;
-    const parsedId = Number(savedDefaultListId);
-    return Number.isNaN(parsedId) ? null : parsedId;
+    const parsed = Number(localStorage.getItem("default_list_id"));
+    return Number.isNaN(parsed) ? null : parsed;
   });
+
+  function getAuthHeaders() {
+    if (!authToken) return {};
+    return { Authorization: `Bearer ${authToken}` };
+  }
+
+  function clearAuthState() {
+    setAuthToken("");
+    setAuthUser(null);
+    setLinkedSpotifyUserId(null);
+    setDefaultListId(null);
+    setAlbumRatings({});
+    setSavedAlbums([]);
+    localStorage.removeItem("app_auth_token");
+    localStorage.removeItem("app_auth_user");
+    localStorage.removeItem("linked_spotify_user_id");
+    localStorage.removeItem("default_list_id");
+  }
+
+  function logout() {
+    clearAuthState();
+    setToken("");
+    setUser("");
+    localStorage.removeItem("spotify_token");
+    localStorage.removeItem("spotify_user");
+    localStorage.removeItem("spotify_verifier");
+  }
 
   // ---------- PKCE HELPERS ----------
 
@@ -61,9 +96,7 @@ function App() {
     const data = new TextEncoder().encode(verifier);
     const digest = await crypto.subtle.digest("SHA-256", data);
 
-    const base64 = btoa(
-      String.fromCharCode(...new Uint8Array(digest))
-    );
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
 
     return base64
       .replace(/\+/g, "-")
@@ -73,7 +106,7 @@ function App() {
 
   // ---------- LOGIN FUNCTION ----------
 
-  async function login() {
+  async function loginSpotify() {
     const verifier = generateCodeVerifier();
     localStorage.setItem("spotify_verifier", verifier);
 
@@ -89,6 +122,44 @@ function App() {
     });
 
     window.location.href = `${authEndpoint}?${params.toString()}`;
+  }
+
+  async function submitAuth(event) {
+    event.preventDefault();
+    setAuthError("");
+
+    const endpoint = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+
+    try {
+      const response = await fetch(`${apiBaseURL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(authForm),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setAuthError(data.error || "Authentication failed");
+        return;
+      }
+
+      setAuthToken(data.token);
+      setAuthUser(data.user);
+      setLinkedSpotifyUserId(data.user.spotify_user_id || null);
+      localStorage.setItem("app_auth_token", data.token);
+      localStorage.setItem("app_auth_user", JSON.stringify(data.user));
+
+      if (data.user.spotify_user_id) {
+        localStorage.setItem("linked_spotify_user_id", String(data.user.spotify_user_id));
+      } else {
+        localStorage.removeItem("linked_spotify_user_id");
+      }
+    } catch (error) {
+      setAuthError("Authentication request failed");
+      console.error(error);
+    }
   }
 
   // ---------- HANDLE REDIRECT + TOKEN EXCHANGE ----------
@@ -122,6 +193,36 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!authToken) return;
+
+    fetch(`${apiBaseURL}/api/auth/me`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Invalid auth session");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setAuthUser(data);
+        setLinkedSpotifyUserId(data.spotify_user_id || null);
+        localStorage.setItem("app_auth_user", JSON.stringify(data));
+
+        if (data.spotify_user_id) {
+          localStorage.setItem("linked_spotify_user_id", String(data.spotify_user_id));
+        } else {
+          localStorage.removeItem("linked_spotify_user_id");
+        }
+      })
+      .catch(() => {
+        clearAuthState();
+      });
+  }, [apiBaseURL, authToken]);
+
+  useEffect(() => {
     if (!token) return;
 
     fetch("https://api.spotify.com/v1/me", {
@@ -137,13 +238,41 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    if (appUserId) {
-      localStorage.setItem("app_user_id", String(appUserId));
-      return;
-    }
+    if (!authToken || !user?.id) return;
 
-    localStorage.removeItem("app_user_id");
-  }, [appUserId]);
+    fetch(`${apiBaseURL}/api/users/upsert`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        spotify_id: user.id,
+        display_name: user.display_name,
+        email: user.email,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to link Spotify account");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const spotifyUserId = data.spotify_user_id;
+        setLinkedSpotifyUserId(spotifyUserId);
+        localStorage.setItem("linked_spotify_user_id", String(spotifyUserId));
+
+        setAuthUser((prev) => {
+          const nextUser = { ...(prev || {}), spotify_user_id: spotifyUserId };
+          localStorage.setItem("app_auth_user", JSON.stringify(nextUser));
+          return nextUser;
+        });
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, [apiBaseURL, authToken, user]);
 
   useEffect(() => {
     if (defaultListId) {
@@ -155,39 +284,19 @@ function App() {
   }, [defaultListId]);
 
   useEffect(() => {
-    if (!user?.id) return;
-
-    fetch(`${apiBaseURL}/api/users/upsert`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        spotify_id: user.id,
-        display_name: user.display_name,
-        email: user.email,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Failed to upsert user");
-        }
-        return res.json();
-      })
-      .then((dbUser) => {
-        setAppUserId(dbUser.id);
-      })
-      .catch((error) => {
-        console.error("Failed to sync user with backend", error);
-      });
-  }, [apiBaseURL, user]);
-
-  useEffect(() => {
-    if (!appUserId) return;
+    if (!authToken || !linkedSpotifyUserId) return;
 
     Promise.all([
-      fetch(`${apiBaseURL}/api/ratings/${appUserId}`),
-      fetch(`${apiBaseURL}/api/lists/${appUserId}`),
+      fetch(`${apiBaseURL}/api/ratings`, {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      }),
+      fetch(`${apiBaseURL}/api/lists`, {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      }),
     ])
       .then(async ([ratingsRes, listsRes]) => {
         const ratingsData = ratingsRes.ok ? await ratingsRes.json() : [];
@@ -220,34 +329,35 @@ function App() {
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
       });
-  }, [apiBaseURL, appUserId]);
+  }, [apiBaseURL, authToken, linkedSpotifyUserId]);
 
   async function ensureDefaultList() {
-    if (!appUserId) return null;
-    if (defaultListId) return defaultListId;
+    if (!defaultListId) {
+      const response = await fetch(`${apiBaseURL}/api/lists`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          name: "My List",
+        }),
+      });
 
-    const response = await fetch(`${apiBaseURL}/api/lists`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: appUserId,
-        name: "My List",
-      }),
-    });
+      if (!response.ok) {
+        throw new Error("Failed to create default list");
+      }
 
-    if (!response.ok) {
-      throw new Error("Failed to create default list");
+      const list = await response.json();
+      setDefaultListId(list.id);
+      return list.id;
     }
 
-    const list = await response.json();
-    setDefaultListId(list.id);
-    return list.id;
+    return defaultListId;
   }
 
   function searchSpotify() {
-    if (!search.trim()) return;
+    if (!search.trim() || !token) return;
 
     fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(search)}&type=${searchType}`, {
       headers: {
@@ -307,7 +417,7 @@ function App() {
   }
 
   async function rateAlbum(albumId) {
-    if (!appUserId) return;
+    if (!authToken || !linkedSpotifyUserId) return;
 
     const currentRating = albumRatings[albumId] ?? "";
     const newRating = window.prompt("Rate this album from 1 to 10", currentRating);
@@ -321,9 +431,9 @@ function App() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({
-        user_id: appUserId,
         album_id: albumId,
         rating: parsedRating,
       }),
@@ -338,7 +448,7 @@ function App() {
   }
 
   async function addAlbumToList(album) {
-    if (!appUserId) return;
+    if (!authToken || !linkedSpotifyUserId) return;
     if (savedAlbums.some((savedAlbum) => savedAlbum.id === album.id)) return;
 
     const targetListId = await ensureDefaultList();
@@ -348,6 +458,7 @@ function App() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({
         album_id: album.id,
@@ -368,9 +479,6 @@ function App() {
     ]);
   }
 
-
-
-
   // ---------- UI ----------
 
   return (
@@ -378,14 +486,61 @@ function App() {
       <div className="header">
         <h1>lists.pr</h1>
         <div className="verticalLineSmall"></div>
-        {token && user?.display_name ? (
+        {authUser?.username ? (
+          <p className="usernameTopRight">{authUser.username}</p>
+        ) : token && user?.display_name ? (
           <p className="usernameTopRight">{user.display_name}</p>
         ) : null}
       </div>
 
       <div className="body">
-        {!token ? (
-          <button onClick={login}>Login to Spotify</button>
+        {!authToken ? (
+          <form className="authCard" onSubmit={submitAuth}>
+            <h2>{authMode === "register" ? "Create Account" : "Login"}</h2>
+            <input
+              value={authForm.username}
+              onChange={(e) =>
+                setAuthForm((prev) => ({
+                  ...prev,
+                  username: e.target.value,
+                }))
+              }
+              placeholder="Username"
+            />
+            <input
+              type="password"
+              value={authForm.password}
+              onChange={(e) =>
+                setAuthForm((prev) => ({
+                  ...prev,
+                  password: e.target.value,
+                }))
+              }
+              placeholder="Password"
+            />
+            {authError ? <p className="authError">{authError}</p> : null}
+            <div className="authActions">
+              <button type="submit">{authMode === "register" ? "Register" : "Login"}</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthError("");
+                  setAuthMode((prev) => (prev === "login" ? "register" : "login"));
+                }}
+              >
+                {authMode === "login" ? "Need an account?" : "Have an account?"}
+              </button>
+            </div>
+          </form>
+        ) : !token || !linkedSpotifyUserId ? (
+          <div className="authCard">
+            <h2>Link Spotify</h2>
+            <p>Login succeeded. Link your Spotify account to continue.</p>
+            <div className="authActions">
+              <button onClick={loginSpotify}>Link Spotify Account</button>
+              <button onClick={logout}>Logout</button>
+            </div>
+          </div>
         ) : (
           <div className="searchSection">
             <div className="searchCards">
@@ -419,6 +574,9 @@ function App() {
               >
                 Artist Search
               </button>
+              <button className="searchCard" onClick={logout}>
+                Logout
+              </button>
             </div>
             <div className="searchBar">
               <input
@@ -431,9 +589,7 @@ function App() {
                 }}
                 placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
               />
-              <button onClick={searchSpotify}>
-                Search
-              </button>
+              <button onClick={searchSpotify}>Search</button>
             </div>
             <div className="resultsList">
               {results.map((item) => {

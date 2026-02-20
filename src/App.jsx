@@ -47,6 +47,7 @@ function App() {
   const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
   const [savedAlbums, setSavedAlbums] = useState([]);
+  const [showMyLists, setShowMyLists] = useState(false);
   const [defaultListId, setDefaultListId] = useState(() => {
     const parsed = Number(localStorage.getItem("default_list_id"));
     return Number.isNaN(parsed) ? null : parsed;
@@ -314,6 +315,7 @@ function App() {
         if (!preferredList) {
           setDefaultListId(null);
           setSavedAlbums([]);
+          setShowMyLists(false);
           return;
         }
 
@@ -487,7 +489,19 @@ function App() {
         <h1>lists.pr</h1>
         <div className="verticalLineSmall"></div>
         {authUser?.username ? (
-          <p className="usernameTopRight">{authUser.username}</p>
+          <div className="userMenuTopRight">
+            <p className="usernameTopRight">{authUser.username}</p>
+            <div className="userHoverMenu">
+              <button
+                onClick={() => {
+                  setShowMyLists((prev) => !prev);
+                }}
+              >
+                View My Lists
+              </button>
+              <button onClick={logout}>Logout</button>
+            </div>
+          </div>
         ) : token && user?.display_name ? (
           <p className="usernameTopRight">{user.display_name}</p>
         ) : null}
@@ -574,10 +588,24 @@ function App() {
               >
                 Artist Search
               </button>
-              <button className="searchCard" onClick={logout}>
-                Logout
-              </button>
             </div>
+            {showMyLists ? (
+              <div className="myListsPanel">
+                <h3>My List</h3>
+                {savedAlbums.length === 0 ? (
+                  <p>No albums saved yet.</p>
+                ) : (
+                  <div className="myListItems">
+                    {savedAlbums.map((album) => (
+                      <div key={album.id} className="myListItem">
+                        <p>{album.name}</p>
+                        <p>{album.artists}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
             <div className="searchBar">
               <input
                 value={search}

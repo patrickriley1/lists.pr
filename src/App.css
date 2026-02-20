@@ -22,11 +22,35 @@
 }
 
 .usernameTopRight {
+  margin: 0;
+  color: var(--light);
+}
+
+.userMenuTopRight {
   position: absolute;
   right: 40px;
   top: 30px;
-  margin: 0;
-  color: var(--light);
+}
+
+.userHoverMenu {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  width: 150px;
+}
+
+.userMenuTopRight:hover .userHoverMenu {
+  display: flex;
+}
+
+.userHoverMenu button {
+  width: 100%;
+  text-align: left;
 }
 
 .body {
@@ -95,6 +119,34 @@
 .authError {
   color: #ff6767;
   margin: 0;
+}
+
+.myListsPanel {
+  width: 100%;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.myListsPanel h3 {
+  margin: 0 0 10px 0;
+  color: var(--light);
+}
+
+.myListItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.myListItem {
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.myListItem p {
+  margin: 2px 0;
 }
 
 .searchCards {

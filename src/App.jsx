@@ -6,11 +6,20 @@ function App() {
   const redirectURI = "https://lists-pr.vercel.app";
   const authEndpoint = "https://accounts.spotify.com/authorize";
 
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(() => localStorage.getItem("spotify_token") || "");
 
 
   //user info variables
-  const [user, setUser] = useState("");
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("spotify_user");
+    if (!savedUser) return "";
+
+    try {
+      return JSON.parse(savedUser);
+    } catch {
+      return "";
+    }
+  });
 
 
   //album search variables
@@ -91,6 +100,7 @@ function App() {
     })
       .then((res) => res.json())
       .then((data) => {
+        localStorage.setItem("spotify_token", data.access_token);
         setToken(data.access_token);
         window.history.replaceState({}, document.title, "/");
       });
@@ -106,6 +116,7 @@ function App() {
     })
       .then((res) => res.json())
       .then((data) => {
+        localStorage.setItem("spotify_user", JSON.stringify(data));
         setUser(data);
       });
   }, [token]);
@@ -132,24 +143,28 @@ function App() {
       <div className="header">
         <h1>lists.pr</h1>
         <div className="verticalLineSmall"></div>
+        {token && user?.display_name ? (
+          <p className="usernameTopRight">{user.display_name}</p>
+        ) : null}
       </div>
 
       <div className="body">
         {!token ? (
           <button onClick={login}>Login to Spotify</button>
         ) : (
-            <p>{user.display_name}</p>
+          <div>
+            <div className="albumSearch">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search for an album"
+              />
+              <button onClick={searchAlbums}>
+                Search
+              </button>
+            </div>
+          </div>
         )}
-        <div className="albumSearch">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search for an album"
-          />
-          <button onClick={searchAlbums}>
-            Search
-          </button>
-        </div>
         <div className="albumResults">
           {albums.map((album) => (
             <div key={album.id} className="albumItem" onClick={() => {
@@ -168,13 +183,13 @@ function App() {
           ))}
         </div>
         <div>
-          {selectedAlbums.map((album) => {
+          {selectedAlbums.map((album) => (
             <div className="albumItem" key={album.id}>
               <img src={album.images[0]?.url} width="50" />
               <p>{album.name}</p>
               <p>{album.artists[0].name}</p>
             </div>
-          })}
+          ))}
         </div>
       </div>
     </div>

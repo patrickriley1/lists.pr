@@ -22,12 +22,10 @@ function App() {
   });
 
 
-  //album search variables
+  // Search variables
   const [search, setSearch] = useState("");
-  const [albums, setAlbums] = useState([]);
-
-  // User interaction variables
-  const [selectedAlbums, setSelectedAlbums] = useState([]);
+  const [searchType, setSearchType] = useState("album");
+  const [results, setResults] = useState([]);
 
   // ---------- PKCE HELPERS ----------
 
@@ -121,15 +119,27 @@ function App() {
       });
   }, [token]);
 
-  function searchAlbums() {
-    fetch(`https://api.spotify.com/v1/search?q=${search}&type=album`, {
+  function searchSpotify() {
+    if (!search.trim()) return;
+
+    fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(search)}&type=${searchType}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     })
       .then((res) => res.json())
       .then((data) => {
-        setAlbums(data.albums.items);
+        if (searchType === "album") {
+          setResults(data.albums?.items || []);
+          return;
+        }
+
+        if (searchType === "track") {
+          setResults(data.tracks?.items || []);
+          return;
+        }
+
+        setResults(data.artists?.items || []);
       });
   }
 
@@ -152,45 +162,75 @@ function App() {
         {!token ? (
           <button onClick={login}>Login to Spotify</button>
         ) : (
-          <div>
-            <div className="albumSearch">
+          <div className="searchSection">
+            <div className="searchCards">
+              <button
+                className={`searchCard ${searchType === "album" ? "active" : ""}`}
+                onClick={() => {
+                  setSearchType("album");
+                  setResults([]);
+                }}
+              >
+                Album Search
+              </button>
+              <button
+                className={`searchCard ${searchType === "track" ? "active" : ""}`}
+                onClick={() => {
+                  setSearchType("track");
+                  setResults([]);
+                }}
+              >
+                Song Search
+              </button>
+              <button
+                className={`searchCard ${searchType === "artist" ? "active" : ""}`}
+                onClick={() => {
+                  setSearchType("artist");
+                  setResults([]);
+                }}
+              >
+                Artist Search
+              </button>
+            </div>
+            <div className="searchBar">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search for an album"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    searchSpotify();
+                  }
+                }}
+                placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
               />
-              <button onClick={searchAlbums}>
+              <button onClick={searchSpotify}>
                 Search
               </button>
             </div>
+            <div className="resultsList">
+              {results.map((item) => (
+                <div key={item.id} className="resultItem">
+                  <img
+                    src={
+                      searchType === "track"
+                        ? item.album?.images?.[0]?.url
+                        : item.images?.[0]?.url
+                    }
+                    width="80"
+                  />
+                  <div className="resultInfo">
+                    <p>{item.name}</p>
+                    <p>
+                      {searchType === "artist"
+                        ? "Artist"
+                        : item.artists?.map((artist) => artist.name).join(", ")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        <div className="albumResults">
-          {albums.map((album) => (
-            <div key={album.id} className="albumItem" onClick={() => {
-              if (selectedAlbums.includes(album.id)) {
-                setSelectedAlbums(selectedAlbums.filter(id => id !== album.id));
-              } else {
-                setSelectedAlbums([...selectedAlbums, album.id]);
-              }
-            }}>
-              <img src={album.images[0]?.url} width="100" />
-              <div className="albumInfo">
-                <p>{album.name}</p>
-                <p>{album.artists[0].name}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div>
-          {selectedAlbums.map((album) => (
-            <div className="albumItem" key={album.id}>
-              <img src={album.images[0]?.url} width="50" />
-              <p>{album.name}</p>
-              <p>{album.artists[0].name}</p>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

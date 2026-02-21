@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/next";
 import "./App.css";
 
 function App() {
@@ -6,6 +8,9 @@ function App() {
   const redirectURI = "https://lists-pr.vercel.app";
   const authEndpoint = "https://accounts.spotify.com/authorize";
   const apiBaseURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [token, setToken] = useState(() => localStorage.getItem("spotify_token") || "");
   const [user, setUser] = useState(() => {
@@ -39,19 +44,20 @@ function App() {
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [authError, setAuthError] = useState("");
 
-  // Search variables
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
+  const [ratingEntries, setRatingEntries] = useState([]);
   const [savedAlbums, setSavedAlbums] = useState([]);
-  const [showMyLists, setShowMyLists] = useState(false);
   const [defaultListId, setDefaultListId] = useState(() => {
     const parsed = Number(localStorage.getItem("default_list_id"));
     return Number.isNaN(parsed) ? null : parsed;
   });
+
+  const canUseApp = Boolean(authToken && token && linkedSpotifyUserId);
 
   function getAuthHeaders() {
     if (!authToken) return {};
@@ -64,6 +70,7 @@ function App() {
     setLinkedSpotifyUserId(null);
     setDefaultListId(null);
     setAlbumRatings({});
+    setRatingEntries([]);
     setSavedAlbums([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -78,14 +85,11 @@ function App() {
     localStorage.removeItem("spotify_token");
     localStorage.removeItem("spotify_user");
     localStorage.removeItem("spotify_verifier");
+    navigate("/");
   }
 
-  // ---------- PKCE HELPERS ----------
-
   function generateCodeVerifier(length = 64) {
-    const possible =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-
+    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
     const randomValues = crypto.getRandomValues(new Uint8Array(length));
 
     return Array.from(randomValues)
@@ -96,16 +100,10 @@ function App() {
   async function generateCodeChallenge(verifier) {
     const data = new TextEncoder().encode(verifier);
     const digest = await crypto.subtle.digest("SHA-256", data);
-
     const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
 
-    return base64
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-
-  // ---------- LOGIN FUNCTION ----------
 
   async function loginSpotify() {
     const verifier = generateCodeVerifier();
@@ -157,17 +155,16 @@ function App() {
       } else {
         localStorage.removeItem("linked_spotify_user_id");
       }
+
+      navigate("/");
     } catch (error) {
       setAuthError("Authentication request failed");
       console.error(error);
     }
   }
 
-  // ---------- HANDLE REDIRECT + TOKEN EXCHANGE ----------
-
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code");
-
     if (!code) return;
 
     const verifier = localStorage.getItem("spotify_verifier");
@@ -305,6 +302,8 @@ function App() {
         return { ratingsData, listsData };
       })
       .then(({ ratingsData, listsData }) => {
+        setRatingEntries(ratingsData);
+
         const ratingsMap = ratingsData.reduce((acc, ratingRow) => {
           acc[ratingRow.album_id] = ratingRow.rating;
           return acc;
@@ -315,7 +314,6 @@ function App() {
         if (!preferredList) {
           setDefaultListId(null);
           setSavedAlbums([]);
-          setShowMyLists(false);
           return;
         }
 
@@ -447,6 +445,11 @@ function App() {
       ...prev,
       [albumId]: parsedRating,
     }));
+
+    setRatingEntries((prev) => {
+      const rest = prev.filter((entry) => entry.album_id !== albumId);
+      return [{ album_id: albumId, rating: parsedRating }, ...rest];
+    });
   }
 
   async function addAlbumToList(album) {
@@ -481,20 +484,288 @@ function App() {
     ]);
   }
 
-  // ---------- UI ----------
+  function renderAuthCard() {
+    return (
+      <form className="authCard" onSubmit={submitAuth}>
+        <h2>{authMode === "register" ? "Create Account" : "Login"}</h2>
+        <input
+          value={authForm.username}
+          onChange={(e) =>
+            setAuthForm((prev) => ({
+              ...prev,
+              username: e.target.value,
+            }))
+          }
+          placeholder="Username"
+        />
+        <input
+          type="password"
+          value={authForm.password}
+          onChange={(e) =>
+            setAuthForm((prev) => ({
+              ...prev,
+              password: e.target.value,
+            }))
+          }
+          placeholder="Password"
+        />
+        {authError ? <p className="authError">{authError}</p> : null}
+        <div className="authActions">
+          <button type="submit">{authMode === "register" ? "Register" : "Login"}</button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthError("");
+              setAuthMode((prev) => (prev === "login" ? "register" : "login"));
+            }}
+          >
+            {authMode === "login" ? "Need an account?" : "Have an account?"}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  function renderLinkSpotifyCard() {
+    return (
+      <div className="authCard">
+        <h2>Link Spotify</h2>
+        <p>Login succeeded. Link your Spotify account to continue.</p>
+        <div className="authActions">
+          <button onClick={loginSpotify}>Link Spotify Account</button>
+          <button onClick={logout}>Logout</button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSearchPage() {
+    if (!canUseApp) {
+      return <Navigate to="/" replace />;
+    }
+
+    return (
+      <div className="searchSection">
+        <h2 className="pageTitle">Search</h2>
+        <div className="searchCards">
+          <button
+            className={`searchCard ${searchType === "album" ? "active" : ""}`}
+            onClick={() => {
+              setSearchType("album");
+              setResults([]);
+              setExpandedAlbumId(null);
+            }}
+          >
+            Album Search
+          </button>
+          <button
+            className={`searchCard ${searchType === "track" ? "active" : ""}`}
+            onClick={() => {
+              setSearchType("track");
+              setResults([]);
+              setExpandedAlbumId(null);
+            }}
+          >
+            Song Search
+          </button>
+          <button
+            className={`searchCard ${searchType === "artist" ? "active" : ""}`}
+            onClick={() => {
+              setSearchType("artist");
+              setResults([]);
+              setExpandedAlbumId(null);
+            }}
+          >
+            Artist Search
+          </button>
+        </div>
+        <div className="searchBar">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                searchSpotify();
+              }
+            }}
+            placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
+          />
+          <button onClick={searchSpotify}>Search</button>
+        </div>
+        <div className="resultsList">
+          {results.map((item) => {
+            const isAlbum = searchType === "album";
+            const isExpanded = isAlbum && expandedAlbumId === item.id;
+            const details = albumDetailsById[item.id];
+            const releaseYear = details?.releaseDate
+              ? details.releaseDate.slice(0, 4)
+              : item.release_date?.slice(0, 4);
+
+            return (
+              <div
+                key={item.id}
+                className={`resultItem ${isExpanded ? "expanded" : ""}`}
+                onClick={() => {
+                  if (isAlbum) {
+                    toggleAlbumExpand(item.id);
+                  }
+                }}
+              >
+                <div className="resultMain">
+                  <img
+                    src={
+                      searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url
+                    }
+                    width="80"
+                  />
+                  <div className="resultInfo">
+                    <p>{item.name}</p>
+                    <p>
+                      {searchType === "artist"
+                        ? "Artist"
+                        : item.artists?.map((artist) => artist.name).join(", ")}
+                    </p>
+                  </div>
+                </div>
+
+                {isExpanded ? (
+                  <div className="albumExpanded">
+                    <p>Released: {releaseYear || "Unknown"}</p>
+                    <div className="albumActions">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void rateAlbum(item.id);
+                        }}
+                      >
+                        {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void addAlbumToList(item);
+                        }}
+                      >
+                        {savedAlbums.some((savedAlbum) => savedAlbum.id === item.id)
+                          ? "Added"
+                          : "Add to List"}
+                      </button>
+                    </div>
+                    <p>Tracklist</p>
+                    {details?.loading ? (
+                      <p>Loading tracks...</p>
+                    ) : (
+                      <ol className="trackList">
+                        {(details?.tracks || []).map((track) => (
+                          <li key={track.id || track.name}>{track.name}</li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function renderLibraryPage() {
+    if (!canUseApp) {
+      return <Navigate to="/" replace />;
+    }
+
+    return (
+      <div className="libraryPage">
+        <h2 className="pageTitle">Library / Profile</h2>
+        <div className="libraryGrid">
+          <div className="myListsPanel">
+            <h3>My List</h3>
+            {savedAlbums.length === 0 ? (
+              <p>No albums saved yet.</p>
+            ) : (
+              <div className="myListItems">
+                {savedAlbums.map((album) => (
+                  <div key={album.id} className="myListItem">
+                    <p>{album.name}</p>
+                    <p>{album.artists}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="myListsPanel">
+            <h3>My Reviews</h3>
+            {ratingEntries.length === 0 ? (
+              <p>No ratings yet.</p>
+            ) : (
+              <div className="myListItems">
+                {ratingEntries.map((entry) => (
+                  <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
+                    <p>Album ID: {entry.album_id}</p>
+                    <p>Rating: {entry.rating}/10</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderHomePage() {
+    if (!authToken) {
+      return (
+        <div className="pageSection">
+          <h2 className="pageTitle">Home</h2>
+          <p className="pageIntro">Create an account or sign in to start building your music library.</p>
+          {renderAuthCard()}
+        </div>
+      );
+    }
+
+    if (!token || !linkedSpotifyUserId) {
+      return (
+        <div className="pageSection">
+          <h2 className="pageTitle">Home</h2>
+          <p className="pageIntro">Your app account is ready. Link Spotify to unlock search and library pages.</p>
+          {renderLinkSpotifyCard()}
+        </div>
+      );
+    }
+
+    return (
+      <div className="pageSection">
+        <h2 className="pageTitle">Home</h2>
+        <p className="pageIntro">Welcome back, {authUser?.username}. Pick a page to continue.</p>
+        <div className="homeActions">
+          <Link className="searchCard active" to="/search">
+            Go to Search
+          </Link>
+          <Link className="searchCard" to="/library">
+            Go to Library
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="header">
         <h1>lists.pr</h1>
         <div className="verticalLineSmall"></div>
+
         {authUser?.username ? (
           <div className="userMenuTopRight">
             <p className="usernameTopRight">{authUser.username}</p>
             <div className="userHoverMenu">
               <button
                 onClick={() => {
-                  setShowMyLists((prev) => !prev);
+                  navigate("/library");
                 }}
               >
                 View My Lists
@@ -508,196 +779,30 @@ function App() {
       </div>
 
       <div className="body">
-        {!authToken ? (
-          <form className="authCard" onSubmit={submitAuth}>
-            <h2>{authMode === "register" ? "Create Account" : "Login"}</h2>
-            <input
-              value={authForm.username}
-              onChange={(e) =>
-                setAuthForm((prev) => ({
-                  ...prev,
-                  username: e.target.value,
-                }))
-              }
-              placeholder="Username"
-            />
-            <input
-              type="password"
-              value={authForm.password}
-              onChange={(e) =>
-                setAuthForm((prev) => ({
-                  ...prev,
-                  password: e.target.value,
-                }))
-              }
-              placeholder="Password"
-            />
-            {authError ? <p className="authError">{authError}</p> : null}
-            <div className="authActions">
-              <button type="submit">{authMode === "register" ? "Register" : "Login"}</button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthError("");
-                  setAuthMode((prev) => (prev === "login" ? "register" : "login"));
-                }}
-              >
-                {authMode === "login" ? "Need an account?" : "Have an account?"}
-              </button>
-            </div>
-          </form>
-        ) : !token || !linkedSpotifyUserId ? (
-          <div className="authCard">
-            <h2>Link Spotify</h2>
-            <p>Login succeeded. Link your Spotify account to continue.</p>
-            <div className="authActions">
-              <button onClick={loginSpotify}>Link Spotify Account</button>
-              <button onClick={logout}>Logout</button>
-            </div>
-          </div>
-        ) : (
-          <div className="searchSection">
-            <div className="searchCards">
-              <button
-                className={`searchCard ${searchType === "album" ? "active" : ""}`}
-                onClick={() => {
-                  setSearchType("album");
-                  setResults([]);
-                  setExpandedAlbumId(null);
-                }}
-              >
-                Album Search
-              </button>
-              <button
-                className={`searchCard ${searchType === "track" ? "active" : ""}`}
-                onClick={() => {
-                  setSearchType("track");
-                  setResults([]);
-                  setExpandedAlbumId(null);
-                }}
-              >
-                Song Search
-              </button>
-              <button
-                className={`searchCard ${searchType === "artist" ? "active" : ""}`}
-                onClick={() => {
-                  setSearchType("artist");
-                  setResults([]);
-                  setExpandedAlbumId(null);
-                }}
-              >
-                Artist Search
-              </button>
-            </div>
-            {showMyLists ? (
-              <div className="myListsPanel">
-                <h3>My List</h3>
-                {savedAlbums.length === 0 ? (
-                  <p>No albums saved yet.</p>
-                ) : (
-                  <div className="myListItems">
-                    {savedAlbums.map((album) => (
-                      <div key={album.id} className="myListItem">
-                        <p>{album.name}</p>
-                        <p>{album.artists}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-            <div className="searchBar">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    searchSpotify();
-                  }
-                }}
-                placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
-              />
-              <button onClick={searchSpotify}>Search</button>
-            </div>
-            <div className="resultsList">
-              {results.map((item) => {
-                const isAlbum = searchType === "album";
-                const isExpanded = isAlbum && expandedAlbumId === item.id;
-                const details = albumDetailsById[item.id];
-                const releaseYear = details?.releaseDate
-                  ? details.releaseDate.slice(0, 4)
-                  : item.release_date?.slice(0, 4);
+        <nav className="topNav">
+          <Link className={location.pathname === "/" ? "navLink active" : "navLink"} to="/">
+            Home
+          </Link>
+          <Link
+            className={location.pathname === "/search" ? "navLink active" : "navLink"}
+            to="/search"
+          >
+            Search
+          </Link>
+          <Link
+            className={location.pathname === "/library" ? "navLink active" : "navLink"}
+            to="/library"
+          >
+            Library/Profile
+          </Link>
+        </nav>
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`resultItem ${isExpanded ? "expanded" : ""}`}
-                    onClick={() => {
-                      if (isAlbum) {
-                        toggleAlbumExpand(item.id);
-                      }
-                    }}
-                  >
-                    <div className="resultMain">
-                      <img
-                        src={
-                          searchType === "track"
-                            ? item.album?.images?.[0]?.url
-                            : item.images?.[0]?.url
-                        }
-                        width="80"
-                      />
-                      <div className="resultInfo">
-                        <p>{item.name}</p>
-                        <p>
-                          {searchType === "artist"
-                            ? "Artist"
-                            : item.artists?.map((artist) => artist.name).join(", ")}
-                        </p>
-                      </div>
-                    </div>
-
-                    {isExpanded ? (
-                      <div className="albumExpanded">
-                        <p>Released: {releaseYear || "Unknown"}</p>
-                        <div className="albumActions">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void rateAlbum(item.id);
-                            }}
-                          >
-                            {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void addAlbumToList(item);
-                            }}
-                          >
-                            {savedAlbums.some((savedAlbum) => savedAlbum.id === item.id)
-                              ? "Added"
-                              : "Add to List"}
-                          </button>
-                        </div>
-                        <p>Tracklist</p>
-                        {details?.loading ? (
-                          <p>Loading tracks...</p>
-                        ) : (
-                          <ol className="trackList">
-                            {(details?.tracks || []).map((track) => (
-                              <li key={track.id || track.name}>{track.name}</li>
-                            ))}
-                          </ol>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <Routes>
+          <Route path="/" element={renderHomePage()} />
+          <Route path="/search" element={renderSearchPage()} />
+          <Route path="/library" element={renderLibraryPage()} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </div>
   );

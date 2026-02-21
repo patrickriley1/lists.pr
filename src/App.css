@@ -66,6 +66,48 @@
   color: var(--light);
 }
 
+.topNav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.navLink {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  text-decoration: none;
+}
+
+.navLink.active {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.pageSection {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--light);
+}
+
+.pageIntro {
+  margin: 0;
+}
+
+.homeActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .body input {
   padding: 10px;
   border-radius: 10px;
@@ -145,6 +187,20 @@
   padding: 8px;
 }
 
+.libraryPage {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.libraryGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 .myListItem p {
   margin: 2px 0;
 }
@@ -160,6 +216,10 @@
   background: transparent;
   color: var(--light);
   padding: 12px 18px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .searchCard.active {
@@ -283,6 +343,23 @@
     gap: 14px;
   }
 
+  .topNav {
+    width: 100%;
+  }
+
+  .navLink {
+    flex: 1;
+    text-align: center;
+  }
+
+  .homeActions {
+    flex-direction: column;
+  }
+
+  .homeActions .searchCard {
+    width: 100%;
+  }
+
   .authCard {
     max-width: 100%;
     padding: 14px;
@@ -307,6 +384,10 @@
     padding: 10px 12px;
     font-size: 0.9rem;
     width: 100%;
+  }
+
+  .libraryGrid {
+    grid-template-columns: 1fr;
   }
 
   .searchBar {

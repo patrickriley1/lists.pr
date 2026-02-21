@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import "./library.css";
 
@@ -16,16 +16,35 @@ function LibraryPage({
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editOrderIds, setEditOrderIds] = useState([]);
+  const editOrderIdsRef = useRef([]);
+  const dragStartOrderRef = useRef([]);
 
   const activeList = useMemo(
     () => userLists.find((list) => list.id === activeListId) || null,
     [activeListId, userLists]
+  );
+  const sortedActiveItems = useMemo(
+    () => [...(activeList?.items || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
+    [activeList]
   );
 
   useEffect(() => {
     setIsEditing(false);
     setDraggingItemId(null);
   }, [activeListId]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditOrderIds([]);
+      return;
+    }
+    setEditOrderIds(sortedActiveItems.map((item) => item.id));
+  }, [isEditing, sortedActiveItems]);
+
+  useEffect(() => {
+    editOrderIdsRef.current = editOrderIds;
+  }, [editOrderIds]);
 
   async function applyReorderedItems(listId, reorderedItems) {
     setUserLists((prev) => prev.map((entry) => (entry.id === listId ? { ...entry, items: reorderedItems } : entry)));
@@ -36,29 +55,40 @@ function LibraryPage({
     );
   }
 
-  async function moveListItemByDrag(listId, targetItemId) {
-    if (!draggingItemId || draggingItemId === targetItemId) return;
+  function reorderIdList(ids, movingId, targetId) {
+    const fromIndex = ids.indexOf(movingId);
+    const toIndex = ids.indexOf(targetId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return ids;
 
+    const next = [...ids];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  }
+
+  async function finishPointerReorder(listId, orderedIds) {
     const list = userLists.find((entry) => entry.id === listId);
     if (!list) return;
 
     const sortedItems = [...(list.items || [])].sort((a, b) => (a.position || 0) - (b.position || 0));
+    const byId = new Map(sortedItems.map((entry) => [entry.id, entry]));
+    const reorderedItems = orderedIds
+      .map((id, index) => {
+        const item = byId.get(id);
+        if (!item) return null;
+        return { ...item, position: index + 1 };
+      })
+      .filter(Boolean);
 
-    const fromIndex = sortedItems.findIndex((entry) => entry.id === draggingItemId);
-    const toIndex = sortedItems.findIndex((entry) => entry.id === targetItemId);
-    if (fromIndex < 0 || toIndex < 0) return;
+    if (reorderedItems.length !== sortedItems.length) return;
 
-    const [movedItem] = sortedItems.splice(fromIndex, 1);
-    sortedItems.splice(toIndex, 0, movedItem);
+    await applyReorderedItems(listId, reorderedItems);
+  }
 
-    const rePositioned = sortedItems.map((entry, positionIndex) => ({
-      ...entry,
-      position: positionIndex + 1,
-    }));
-
-    void applyReorderedItems(listId, rePositioned);
-
-    setDraggingItemId(null);
+  function startPointerDrag(itemId) {
+    if (!isEditing) return;
+    dragStartOrderRef.current = editOrderIdsRef.current;
+    setDraggingItemId(itemId);
   }
 
   if (!canUseApp) {
@@ -72,6 +102,44 @@ function LibraryPage({
   for (let index = 0; index < sortedLists.length; index += previewsPerRow) {
     listRows.push(sortedLists.slice(index, index + previewsPerRow));
   }
+
+  useEffect(() => {
+    if (!isEditing || !draggingItemId || !activeListId) return;
+
+    function handlePointerMove(event) {
+      const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+      const row = targetElement?.closest?.("[data-edit-item-id]");
+      if (!row) return;
+
+      const targetId = Number(row.getAttribute("data-edit-item-id"));
+      if (!targetId || targetId === draggingItemId) return;
+
+      setEditOrderIds((prev) => reorderIdList(prev, draggingItemId, targetId));
+    }
+
+    function handlePointerUp() {
+      const startOrder = dragStartOrderRef.current;
+      const finalOrder = editOrderIdsRef.current;
+      const changed =
+        startOrder.length === finalOrder.length && startOrder.some((id, index) => id !== finalOrder[index]);
+
+      if (changed) {
+        void finishPointerReorder(activeListId, finalOrder);
+      }
+
+      setDraggingItemId(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, [activeListId, draggingItemId, isEditing, userLists]);
 
   function renderActiveListPanel() {
     if (!activeList) return null;
@@ -111,19 +179,18 @@ function LibraryPage({
           <p>No items in this list yet.</p>
         ) : (
           <div className={isEditing ? "listItemsEditList" : "listItemsGrid"}>
-            {[...(activeList.items || [])]
-              .sort((a, b) => (a.position || 0) - (b.position || 0))
+            {(isEditing
+              ? editOrderIds
+                  .map((id) => sortedActiveItems.find((entry) => entry.id === id))
+                  .filter(Boolean)
+              : sortedActiveItems
+            )
               .map((item, index) => (
                 isEditing ? (
                   <div
                     key={item.id}
                     className={`editListRow ${draggingItemId === item.id ? "dragging" : ""}`}
-                    onDragOver={(event) => {
-                      event.preventDefault();
-                    }}
-                    onDrop={() => {
-                      void moveListItemByDrag(activeList.id, item.id);
-                    }}
+                    data-edit-item-id={item.id}
                   >
                     <span className="listItemPosition">{index + 1}</span>
                     {item.image_url ? (
@@ -141,12 +208,11 @@ function LibraryPage({
                       <button
                         type="button"
                         className="dragHandleButton"
-                        draggable
-                        onDragStart={(event) => {
+                        onPointerDown={(event) => {
+                          event.preventDefault();
                           event.stopPropagation();
-                          setDraggingItemId(item.id);
+                          startPointerDrag(item.id);
                         }}
-                        onDragEnd={() => setDraggingItemId(null)}
                         aria-label={`Reorder ${item.item_name}`}
                         title="Drag to reorder"
                       >

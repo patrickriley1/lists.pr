@@ -1042,7 +1042,7 @@ function App() {
                       className="listCardMenuButton"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setListMenuOpenId((prev) => (prev === list.id ? null : list.id));
+                        setListMenuOpenId(list.id);
                       }}
                     >
                       ⋮
@@ -1096,7 +1096,12 @@ function App() {
 
         {activeList ? (
           <div className="myListsPanel">
-            <h3>{activeList.name}</h3>
+            <div className="selectedListHeader">
+              <h3>{activeList.name}</h3>
+              <button type="button" onClick={() => setActiveListId(null)}>
+                Close
+              </button>
+            </div>
             {(activeList.items || []).length === 0 ? (
               <p>No items in this list yet.</p>
             ) : (

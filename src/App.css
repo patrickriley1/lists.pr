@@ -257,9 +257,18 @@
 }
 
 .listCardMenuButton {
-  padding: 4px 8px;
+  padding: 2px 4px;
   min-width: auto;
   line-height: 1;
+  background: transparent;
+  border: none;
+  color: var(--light);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.listPreviewCard:hover .listCardMenuButton {
+  opacity: 1;
 }
 
 .listCardMenu {
@@ -280,6 +289,17 @@
 .listCardMenu button {
   width: 100%;
   text-align: left;
+}
+
+.selectedListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.selectedListHeader h3 {
+  margin: 0;
 }
 
 .listPreviewImages {

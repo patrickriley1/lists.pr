@@ -111,6 +111,7 @@ function App() {
       code_challenge_method: "S256",
       code_challenge: challenge,
       scope: "user-read-private user-read-email",
+      show_dialog: "true",
     });
 
     window.location.href = `${authEndpoint}?${params.toString()}`;
@@ -240,7 +241,7 @@ function App() {
     })
       .then((res) => res.json())
       .then(async (tokenData) => {
-        if (!tokenData.access_token || !tokenData.refresh_token) {
+        if (!tokenData.access_token) {
           throw new Error("Spotify link failed");
         }
 
@@ -266,7 +267,7 @@ function App() {
             spotify_id: spotifyProfile.id,
             display_name: spotifyProfile.display_name,
             email: spotifyProfile.email,
-            spotify_refresh_token: tokenData.refresh_token,
+            spotify_refresh_token: tokenData.refresh_token || null,
           }),
         });
 

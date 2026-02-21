@@ -199,6 +199,17 @@ async function ensureCoreTables() {
     CREATE UNIQUE INDEX IF NOT EXISTS list_items_unique_item
     ON list_items (list_id, item_type, item_id)
   `);
+
+  await pool.query(`
+    ALTER TABLE lists
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+  `);
+
+  await pool.query(`
+    UPDATE lists
+    SET updated_at = COALESCE(updated_at, created_at, NOW())
+    WHERE updated_at IS NULL
+  `);
 }
 
 app.use(cors());
@@ -491,9 +502,9 @@ app.post("/api/lists", requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `
-      INSERT INTO lists (user_id, name)
-      VALUES ($1, $2)
-      RETURNING id, user_id, name, created_at
+      INSERT INTO lists (user_id, name, updated_at)
+      VALUES ($1, $2, NOW())
+      RETURNING id, user_id, name, created_at, updated_at
       `,
       [spotifyUserId, name]
     );
@@ -502,6 +513,78 @@ app.post("/api/lists", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("create list error", error);
     return res.status(500).json({ error: "Failed to create list" });
+  }
+});
+
+app.patch("/api/lists/:id", requireAuth, async (req, res) => {
+  const listId = Number(req.params.id);
+  const name = String(req.body.name || "").trim();
+
+  if (Number.isNaN(listId)) {
+    return res.status(400).json({ error: "Invalid list id" });
+  }
+
+  if (!name) {
+    return res.status(400).json({ error: "name is required" });
+  }
+
+  try {
+    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
+    if (!spotifyUserId) {
+      return res.status(400).json({ error: "Link Spotify before editing lists" });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE lists
+      SET name = $1, updated_at = NOW()
+      WHERE id = $2 AND user_id = $3
+      RETURNING id, user_id, name, created_at, updated_at
+      `,
+      [name, listId, spotifyUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error("edit list error", error);
+    return res.status(500).json({ error: "Failed to edit list" });
+  }
+});
+
+app.delete("/api/lists/:id", requireAuth, async (req, res) => {
+  const listId = Number(req.params.id);
+
+  if (Number.isNaN(listId)) {
+    return res.status(400).json({ error: "Invalid list id" });
+  }
+
+  try {
+    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
+    if (!spotifyUserId) {
+      return res.status(400).json({ error: "Link Spotify before deleting lists" });
+    }
+
+    const result = await pool.query(
+      `
+      DELETE FROM lists
+      WHERE id = $1 AND user_id = $2
+      RETURNING id
+      `,
+      [listId, spotifyUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error("delete list error", error);
+    return res.status(500).json({ error: "Failed to delete list" });
   }
 });
 
@@ -563,6 +646,8 @@ app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
       [listId, item_type, item_id, item_name, item_subtitle ?? null, image_url ?? null, nextPosition]
     );
 
+    await pool.query("UPDATE lists SET updated_at = NOW() WHERE id = $1", [listId]);
+
     return res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error("add list item error", error);
@@ -613,6 +698,8 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
       );
     }
 
+    await pool.query("UPDATE lists SET updated_at = NOW() WHERE id = $1", [listId]);
+
     await pool.query("COMMIT");
 
     const itemsResult = await pool.query(
@@ -643,10 +730,10 @@ app.get("/api/lists", requireAuth, async (req, res) => {
 
     const listsResult = await pool.query(
       `
-      SELECT id, user_id, name, created_at
+      SELECT id, user_id, name, created_at, updated_at
       FROM lists
       WHERE user_id = $1
-      ORDER BY created_at DESC
+      ORDER BY updated_at DESC, created_at DESC
       `,
       [spotifyUserId]
     );

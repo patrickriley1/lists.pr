@@ -44,6 +44,7 @@ function App() {
   const [userLists, setUserLists] = useState([]);
   const [activeListId, setActiveListId] = useState(null);
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+  const [listMenuOpenId, setListMenuOpenId] = useState(null);
 
   const [albumMetaById, setAlbumMetaById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
@@ -390,12 +391,60 @@ function App() {
         }));
 
         setUserLists(normalizedLists);
-        setActiveListId((prev) => prev || normalizedLists[0]?.id || null);
+        setActiveListId(null);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
       });
   }, [apiBaseURL, authToken, linkedSpotifyUserId]);
+
+  async function renameList(listId) {
+    const list = userLists.find((entry) => entry.id === listId);
+    const rawName = window.prompt("Rename list", list?.name || "");
+    const name = rawName?.trim();
+
+    if (!name) return;
+
+    const response = await fetch(`${apiBaseURL}/api/lists/${listId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) return;
+
+    const updated = await response.json();
+    setUserLists((prev) =>
+      prev
+        .map((entry) => (entry.id === listId ? { ...entry, name: updated.name, updated_at: updated.updated_at } : entry))
+        .sort(
+          (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+        )
+    );
+  }
+
+  async function deleteList(listId) {
+    const shouldDelete = window.confirm("Delete this list?");
+    if (!shouldDelete) return;
+
+    const response = await fetch(`${apiBaseURL}/api/lists/${listId}`, {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) return;
+
+    setUserLists((prev) => prev.filter((entry) => entry.id !== listId));
+    setListMenuOpenId(null);
+    if (activeListId === listId) {
+      setActiveListId(null);
+    }
+  }
 
   useEffect(() => {
     if (!canUseApp || ratingEntries.length === 0) return;
@@ -482,8 +531,11 @@ function App() {
     const list = await response.json();
     const normalizedList = { ...list, items: [] };
 
-    setUserLists((prev) => [...prev, normalizedList]);
-    setActiveListId(normalizedList.id);
+    setUserLists((prev) =>
+      [...prev, normalizedList].sort(
+        (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+      )
+    );
 
     return normalizedList;
   }
@@ -529,9 +581,12 @@ function App() {
 
         return {
           ...list,
+          updated_at: new Date().toISOString(),
           items: [...(list.items || []), savedItem],
         };
-      })
+      }).sort(
+        (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+      )
     );
 
     setAddToListOpenFor(null);
@@ -554,7 +609,15 @@ function App() {
     const data = await response.json();
 
     setUserLists((prev) =>
-      prev.map((list) => (list.id === listId ? { ...list, items: data.items || [] } : list))
+      prev
+        .map((list) =>
+          list.id === listId
+            ? { ...list, items: data.items || [], updated_at: new Date().toISOString() }
+            : list
+        )
+        .sort(
+          (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+        )
     );
   }
 
@@ -971,9 +1034,51 @@ function App() {
                 className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
                 onClick={() => setActiveListId(list.id)}
               >
-                <p className="listPreviewTitle">
-                  {index + 1}. {list.name}
-                </p>
+                <div className="listPreviewHeader">
+                  <p className="listPreviewTitle">{list.name}</p>
+                  <div className="listCardMenuWrap">
+                    <button
+                      type="button"
+                      className="listCardMenuButton"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setListMenuOpenId((prev) => (prev === list.id ? null : list.id));
+                      }}
+                    >
+                      ⋮
+                    </button>
+                    {listMenuOpenId === list.id ? (
+                      <div className="listCardMenu" onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveListId(list.id);
+                            setListMenuOpenId(null);
+                          }}
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void renameList(list.id);
+                            setListMenuOpenId(null);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void deleteList(list.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="listPreviewImages">
                   {[0, 1, 2, 3].map((slot) => {
                     const previewItem = previewItems[slot];

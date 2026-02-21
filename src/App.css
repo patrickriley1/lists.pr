@@ -241,7 +241,45 @@
 }
 
 .listPreviewTitle {
-  margin: 0 0 10px 0;
+  margin: 0;
+}
+
+.listPreviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.listCardMenuWrap {
+  position: relative;
+}
+
+.listCardMenuButton {
+  padding: 4px 8px;
+  min-width: auto;
+  line-height: 1;
+}
+
+.listCardMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  z-index: 12;
+  min-width: 120px;
+}
+
+.listCardMenu button {
+  width: 100%;
+  text-align: left;
 }
 
 .listPreviewImages {

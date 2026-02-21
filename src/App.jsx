@@ -254,17 +254,59 @@ function App() {
           throw new Error("Spotify link failed");
         }
 
-        const meResponse = await fetch("https://api.spotify.com/v1/me", {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-          },
-        });
+        async function fetchSpotifyProfile(accessToken) {
+          const meResponse = await fetch("https://api.spotify.com/v1/me", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
 
-        if (!meResponse.ok) {
-          throw new Error("Failed to load Spotify profile");
+          if (meResponse.ok) {
+            return meResponse.json();
+          }
+
+          let errorMessage = `Spotify profile request failed (${meResponse.status})`;
+          try {
+            const errorData = await meResponse.json();
+            errorMessage = errorData?.error?.message || errorData?.error || errorMessage;
+          } catch {
+            // no-op
+          }
+
+          throw new Error(errorMessage);
         }
 
-        const spotifyProfile = await meResponse.json();
+        let spotifyProfile;
+        let accessTokenForProfile = tokenData.access_token;
+
+        try {
+          spotifyProfile = await fetchSpotifyProfile(accessTokenForProfile);
+        } catch (profileError) {
+          // If the initial access token fails, try one refresh and retry /me once.
+          if (!tokenData.refresh_token) {
+            throw profileError;
+          }
+
+          const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              client_id: clientID,
+              grant_type: "refresh_token",
+              refresh_token: tokenData.refresh_token,
+            }),
+          });
+
+          const refreshData = await refreshResponse.json();
+          if (!refreshResponse.ok || !refreshData.access_token) {
+            throw profileError;
+          }
+
+          accessTokenForProfile = refreshData.access_token;
+          spotifyProfile = await fetchSpotifyProfile(accessTokenForProfile);
+        }
 
         const linkResponse = await fetch(`${apiBaseURL}/api/users/upsert`, {
           method: "POST",

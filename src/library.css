@@ -88,15 +88,15 @@
 .listItemsEditList {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .editListRow {
   position: relative;
-  min-height: 82px;
+  min-height: 74px;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   display: grid;
   grid-template-columns: auto auto 1fr auto;
   align-items: center;

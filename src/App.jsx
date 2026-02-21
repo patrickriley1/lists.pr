@@ -758,6 +758,23 @@ function App() {
       <div className="header">
         <h1>lists.pr</h1>
         <div className="verticalLineSmall"></div>
+        <nav className="topNav">
+          <Link className={location.pathname === "/" ? "navLink active" : "navLink"} to="/">
+            Home
+          </Link>
+          <Link
+            className={location.pathname === "/search" ? "navLink active" : "navLink"}
+            to="/search"
+          >
+            Search
+          </Link>
+          <Link
+            className={location.pathname === "/library" ? "navLink active" : "navLink"}
+            to="/library"
+          >
+            Library/Profile
+          </Link>
+        </nav>
 
         {authUser?.username ? (
           <div className="userMenuTopRight">
@@ -779,24 +796,6 @@ function App() {
       </div>
 
       <div className="body">
-        <nav className="topNav">
-          <Link className={location.pathname === "/" ? "navLink active" : "navLink"} to="/">
-            Home
-          </Link>
-          <Link
-            className={location.pathname === "/search" ? "navLink active" : "navLink"}
-            to="/search"
-          >
-            Search
-          </Link>
-          <Link
-            className={location.pathname === "/library" ? "navLink active" : "navLink"}
-            to="/library"
-          >
-            Library/Profile
-          </Link>
-        </nav>
-
         <Routes>
           <Route path="/" element={renderHomePage()} />
           <Route path="/search" element={renderSearchPage()} />

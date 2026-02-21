@@ -205,6 +205,17 @@
   gap: 24px;
 }
 
+.libraryColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.libraryColumn h3 {
+  margin: 0;
+  color: var(--light);
+}
+
 .myListItem p {
   margin: 2px 0;
 }

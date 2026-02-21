@@ -59,115 +59,123 @@ function LibraryPage({
 
   return (
     <div className="libraryPage">
-      <h2 className="pageTitle">Library / Profile</h2>
+      <h2 className="pageTitle">Library</h2>
 
-      <div className="listPreviewGrid">
-        {sortedLists.map((list) => {
-          const previewItems = [...(list.items || [])]
-            .sort((a, b) => (a.position || 0) - (b.position || 0))
-            .slice(0, 4);
+      <div className="libraryGrid">
+        <div className="libraryColumn">
+          <h3>My Lists</h3>
 
-          return (
-            <button
-              type="button"
-              key={list.id}
-              className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
-              onClick={() => (list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id))}
-            >
-              <div className="listPreviewHeader">
-                <p className="listPreviewTitle">{list.name}</p>
-              </div>
-              <div className="listPreviewImages">
-                {[0, 1, 2, 3].map((slot) => {
-                  const previewItem = previewItems[slot];
-                  return previewItem?.image_url ? (
-                    <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
-                  ) : (
-                    <div key={slot} className="previewPlaceholder" />
-                  );
-                })}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {activeList ? (
-        <div className="myListsPanel">
-          <div className="selectedListHeader">
-            <h3>{activeList.name}</h3>
-            <div className="selectedListActions">
-              <button type="button" onClick={() => setActiveListId(null)}>
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void renameList(activeList.id);
-                }}
-              >
-                Rename
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void deleteList(activeList.id);
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-          {(activeList.items || []).length === 0 ? (
-            <p>No items in this list yet.</p>
-          ) : (
-            <div className="listItemsGrid">
-              {[...(activeList.items || [])]
+          <div className="listPreviewGrid">
+            {sortedLists.map((list) => {
+              const previewItems = [...(list.items || [])]
                 .sort((a, b) => (a.position || 0) - (b.position || 0))
-                .map((item, index) => (
-                  <div
-                    key={item.id}
-                    className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
-                    draggable
-                    onDragStart={() => setDraggingItemId(item.id)}
-                    onDragOver={(event) => {
-                      event.preventDefault();
+                .slice(0, 4);
+
+              return (
+                <button
+                  type="button"
+                  key={list.id}
+                  className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
+                  onClick={() => (list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id))}
+                >
+                  <div className="listPreviewHeader">
+                    <p className="listPreviewTitle">{list.name}</p>
+                  </div>
+                  <div className="listPreviewImages">
+                    {[0, 1, 2, 3].map((slot) => {
+                      const previewItem = previewItems[slot];
+                      return previewItem?.image_url ? (
+                        <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
+                      ) : (
+                        <div key={slot} className="previewPlaceholder" />
+                      );
+                    })}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeList ? (
+            <div className="myListsPanel">
+              <div className="selectedListHeader">
+                <h3>{activeList.name}</h3>
+                <div className="selectedListActions">
+                  <button type="button" onClick={() => setActiveListId(null)}>
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void renameList(activeList.id);
                     }}
-                    onDrop={() => {
-                      void moveListItemByDrag(activeList.id, item.id);
-                    }}
-                    onDragEnd={() => setDraggingItemId(null)}
                   >
-                    <span className="listItemPosition">{index + 1}</span>
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.item_name} className="listItemImage" />
-                    ) : (
-                      <div className="listItemImage placeholder" />
-                    )}
-                    <p>{item.item_name}</p>
-                    <p>{item.item_subtitle}</p>
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void deleteList(activeList.id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              {(activeList.items || []).length === 0 ? (
+                <p>No items in this list yet.</p>
+              ) : (
+                <div className="listItemsGrid">
+                  {[...(activeList.items || [])]
+                    .sort((a, b) => (a.position || 0) - (b.position || 0))
+                    .map((item, index) => (
+                      <div
+                        key={item.id}
+                        className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
+                        draggable
+                        onDragStart={() => setDraggingItemId(item.id)}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                        }}
+                        onDrop={() => {
+                          void moveListItemByDrag(activeList.id, item.id);
+                        }}
+                        onDragEnd={() => setDraggingItemId(null)}
+                      >
+                        <span className="listItemPosition">{index + 1}</span>
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.item_name} className="listItemImage" />
+                        ) : (
+                          <div className="listItemImage placeholder" />
+                        )}
+                        <p>{item.item_name}</p>
+                        <p>{item.item_subtitle}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="libraryColumn">
+          <div className="myListsPanel">
+            <h3>My Reviews</h3>
+            {ratingEntries.length === 0 ? (
+              <p>No ratings yet.</p>
+            ) : (
+              <div className="myListItems">
+                {ratingEntries.map((entry) => (
+                  <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
+                    <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
+                    <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
+                    <p>Rating: {entry.rating}/10</p>
                   </div>
                 ))}
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      <div className="myListsPanel">
-        <h3>My Reviews</h3>
-        {ratingEntries.length === 0 ? (
-          <p>No ratings yet.</p>
-        ) : (
-          <div className="myListItems">
-            {ratingEntries.map((entry) => (
-              <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
-                <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
-                <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
-                <p>Rating: {entry.rating}/10</p>
               </div>
-            ))}
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

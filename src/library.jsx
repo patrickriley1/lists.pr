@@ -10,12 +10,12 @@ function LibraryPage({
   deleteList,
   reorderListItems,
   removeItemFromList,
-  ratingEntries,
-  albumMetaById,
+  reviewEntries,
 }) {
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [reviewTypeFilter, setReviewTypeFilter] = useState("album");
   const [editOrderIds, setEditOrderIds] = useState([]);
   const editOrderIdsRef = useRef([]);
   const dragStartOrderRef = useRef([]);
@@ -27,6 +27,14 @@ function LibraryPage({
   const sortedActiveItems = useMemo(
     () => [...(activeList?.items || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
     [activeList]
+  );
+  const filteredReviews = useMemo(
+    () =>
+      (reviewEntries || []).filter((entry) => {
+        const type = entry.item_type || "album";
+        return type === reviewTypeFilter;
+      }),
+    [reviewEntries, reviewTypeFilter]
   );
 
   useEffect(() => {
@@ -316,16 +324,50 @@ function LibraryPage({
 
         <div className="libraryColumn reviewsColumn">
           <div className="myListsPanel">
-            <h3>My Reviews</h3>
-            {ratingEntries.length === 0 ? (
-              <p>No ratings yet.</p>
+            <div className="reviewsHeaderRow">
+              <h3>My Reviews</h3>
+              <div className="reviewsTypeSelector">
+                <button
+                  type="button"
+                  className={reviewTypeFilter === "album" ? "active" : ""}
+                  onClick={() => setReviewTypeFilter("album")}
+                >
+                  Albums
+                </button>
+                <button
+                  type="button"
+                  className={reviewTypeFilter === "track" ? "active" : ""}
+                  onClick={() => setReviewTypeFilter("track")}
+                >
+                  Songs
+                </button>
+                <button
+                  type="button"
+                  className={reviewTypeFilter === "artist" ? "active" : ""}
+                  onClick={() => setReviewTypeFilter("artist")}
+                >
+                  Artists
+                </button>
+              </div>
+            </div>
+            {filteredReviews.length === 0 ? (
+              <p>No reviews in this category yet.</p>
             ) : (
               <div className="myListItems">
-                {ratingEntries.map((entry) => (
-                  <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
-                    <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
-                    <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
-                    <p>Rating: {entry.rating}</p>
+                {filteredReviews.map((entry) => (
+                  <div key={`${entry.item_type || "album"}:${entry.item_id || entry.album_id}`} className="myListItem reviewCard">
+                    {entry.image_url ? (
+                      <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="reviewImage" />
+                    ) : (
+                      <div className="reviewImage placeholder" />
+                    )}
+                    <div className="reviewBody">
+                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
+                      <p>{entry.item_subtitle || (entry.item_type === "artist" ? "Artist" : "")}</p>
+                      {entry.review_title ? <p className="reviewTitle">{entry.review_title}</p> : null}
+                      {entry.review_body ? <p className="reviewText">{entry.review_body}</p> : null}
+                      <p>Rating: {entry.rating}/10</p>
+                    </div>
                   </div>
                 ))}
               </div>

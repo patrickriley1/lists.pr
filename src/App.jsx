@@ -37,9 +37,8 @@ function App() {
   const [spotifyLinkError, setSpotifyLinkError] = useState("");
 
   const [userLists, setUserLists] = useState([]);
-  const [albumMetaById, setAlbumMetaById] = useState({});
-  const [albumRatings, setAlbumRatings] = useState({});
-  const [ratingEntries, setRatingEntries] = useState([]);
+  const [reviewByKey, setReviewByKey] = useState({});
+  const [reviewEntries, setReviewEntries] = useState([]);
 
   const canUseApp = Boolean(authToken && linkedSpotifyUserId);
 
@@ -52,9 +51,8 @@ function App() {
     setAuthToken("");
     setAuthUser(null);
     setLinkedSpotifyUserId(null);
-    setAlbumMetaById({});
-    setAlbumRatings({});
-    setRatingEntries([]);
+    setReviewByKey({});
+    setReviewEntries([]);
     setUserLists([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -353,13 +351,16 @@ function App() {
         return { ratingsData, listsData };
       })
       .then(({ ratingsData, listsData }) => {
-        setRatingEntries(ratingsData);
+        setReviewEntries(ratingsData);
 
-        const ratingsMap = ratingsData.reduce((acc, ratingRow) => {
-          acc[ratingRow.album_id] = ratingRow.rating;
+        const reviewMap = ratingsData.reduce((acc, ratingRow) => {
+          const itemType = ratingRow.item_type || "album";
+          const itemId = ratingRow.item_id || ratingRow.album_id;
+          if (!itemId) return acc;
+          acc[`${itemType}:${itemId}`] = ratingRow;
           return acc;
         }, {});
-        setAlbumRatings(ratingsMap);
+        setReviewByKey(reviewMap);
 
         const normalizedLists = (listsData || []).map((list) => ({
           ...list,
@@ -422,39 +423,6 @@ function App() {
 
     setUserLists((prev) => prev.filter((entry) => entry.id !== listId));
   }
-
-  useEffect(() => {
-    if (!canUseApp || ratingEntries.length === 0) return;
-
-    const albumIdsToLoad = [...new Set(ratingEntries.map((entry) => entry.album_id))].filter(
-      (albumId) => albumId && !albumMetaById[albumId]
-    );
-
-    if (albumIdsToLoad.length === 0) return;
-
-    const batchIds = albumIdsToLoad.slice(0, 20).join(",");
-
-    spotifyApiFetch(`/albums?ids=${encodeURIComponent(batchIds)}`)
-      .then(async (response) => {
-        if (!response || !response.ok) {
-          return;
-        }
-
-        const data = await response.json();
-        setAlbumMetaById((prev) => {
-          const next = { ...prev };
-          (data.albums || []).forEach((album) => {
-            if (!album?.id) return;
-            next[album.id] = {
-              name: album.name || "Unknown Album",
-              artists: album.artists?.map((artist) => artist.name).join(", ") || "Unknown Artist",
-            };
-          });
-          return next;
-        });
-      })
-      .catch(() => {});
-  }, [canUseApp, ratingEntries, albumMetaById]);
 
   async function createNewList() {
     const rawName = window.prompt("Name your new list");
@@ -583,16 +551,8 @@ function App() {
     );
   }
 
-  async function rateAlbum(albumId) {
+  async function saveReview(payload) {
     if (!canUseApp) return;
-
-    const currentRating = albumRatings[albumId] ?? "";
-    const newRating = window.prompt("Rate this album from 1 to 10", currentRating);
-
-    if (newRating === null) return;
-
-    const parsedRating = Number(newRating);
-    if (Number.isNaN(parsedRating) || parsedRating < 1 || parsedRating > 10) return;
 
     const response = await fetch(`${apiBaseURL}/api/ratings`, {
       method: "POST",
@@ -600,22 +560,29 @@ function App() {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
       },
-      body: JSON.stringify({
-        album_id: albumId,
-        rating: parsedRating,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) return;
 
-    setAlbumRatings((prev) => ({
+    const savedReview = await response.json();
+    const itemType = savedReview.item_type || "album";
+    const itemId = savedReview.item_id || savedReview.album_id;
+    if (!itemId) return;
+    const reviewKey = `${itemType}:${itemId}`;
+
+    setReviewByKey((prev) => ({
       ...prev,
-      [albumId]: parsedRating,
+      [reviewKey]: savedReview,
     }));
 
-    setRatingEntries((prev) => {
-      const rest = prev.filter((entry) => entry.album_id !== albumId);
-      return [{ album_id: albumId, rating: parsedRating }, ...rest];
+    setReviewEntries((prev) => {
+      const rest = prev.filter((entry) => {
+        const entryType = entry.item_type || "album";
+        const entryId = entry.item_id || entry.album_id;
+        return `${entryType}:${entryId}` !== reviewKey;
+      });
+      return [savedReview, ...rest];
     });
   }
 
@@ -759,8 +726,8 @@ function App() {
                 userLists={userLists}
                 createNewList={createNewList}
                 addItemToList={addItemToList}
-                rateAlbum={rateAlbum}
-                albumRatings={albumRatings}
+                saveReview={saveReview}
+                reviewByKey={reviewByKey}
               />
             }
           />
@@ -775,8 +742,7 @@ function App() {
                 deleteList={deleteList}
                 reorderListItems={reorderListItems}
                 removeItemFromList={removeItemFromList}
-                ratingEntries={ratingEntries}
-                albumMetaById={albumMetaById}
+                reviewEntries={reviewEntries}
               />
             }
           />

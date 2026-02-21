@@ -210,6 +210,84 @@ async function ensureCoreTables() {
     SET updated_at = COALESCE(updated_at, created_at, NOW())
     WHERE updated_at IS NULL
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ratings (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      album_id TEXT,
+      item_type TEXT DEFAULT 'album',
+      item_id TEXT,
+      rating INT NOT NULL,
+      review_title TEXT,
+      review_body TEXT,
+      item_name TEXT,
+      item_subtitle TEXT,
+      image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ALTER COLUMN album_id DROP NOT NULL
+  `).catch(() => {});
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS item_type TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS item_id TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS review_title TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS review_body TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS item_name TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS item_subtitle TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS image_url TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+  `);
+
+  await pool.query(`
+    UPDATE ratings
+    SET
+      item_type = COALESCE(item_type, 'album'),
+      item_id = COALESCE(item_id, album_id),
+      album_id = COALESCE(album_id, item_id),
+      updated_at = COALESCE(updated_at, created_at, NOW())
+    WHERE item_type IS NULL OR item_id IS NULL OR album_id IS NULL OR updated_at IS NULL
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS ratings_unique_item
+    ON ratings (user_id, item_type, item_id)
+  `);
 }
 
 app.use(cors());
@@ -429,10 +507,18 @@ app.get("/api/spotify/token", requireAuth, async (req, res) => {
 });
 
 app.post("/api/ratings", requireAuth, async (req, res) => {
-  const { album_id, rating } = req.body;
+  const rawItemType = String(req.body.item_type || "").trim();
+  const itemType = rawItemType || (req.body.album_id ? "album" : "");
+  const itemId = String(req.body.item_id || req.body.album_id || "").trim();
+  const rating = Number(req.body.rating);
+  const reviewTitle = typeof req.body.review_title === "string" ? req.body.review_title.trim() : "";
+  const reviewBody = typeof req.body.review_body === "string" ? req.body.review_body.trim() : "";
+  const itemName = typeof req.body.item_name === "string" ? req.body.item_name.trim() : "";
+  const itemSubtitle = typeof req.body.item_subtitle === "string" ? req.body.item_subtitle.trim() : "";
+  const imageUrl = typeof req.body.image_url === "string" ? req.body.image_url.trim() : "";
 
-  if (!album_id || typeof rating !== "number") {
-    return res.status(400).json({ error: "album_id and numeric rating are required" });
+  if (!["album", "track", "artist"].includes(itemType) || !itemId || Number.isNaN(rating)) {
+    return res.status(400).json({ error: "item_type, item_id, and numeric rating are required" });
   }
 
   if (rating < 1 || rating > 10) {
@@ -447,13 +533,34 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `
-      INSERT INTO ratings (user_id, album_id, rating)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (user_id, album_id)
-      DO UPDATE SET rating = EXCLUDED.rating
-      RETURNING id, user_id, album_id, rating, created_at
+      INSERT INTO ratings (
+        user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ON CONFLICT (user_id, item_type, item_id)
+      DO UPDATE SET
+        rating = EXCLUDED.rating,
+        review_title = EXCLUDED.review_title,
+        review_body = EXCLUDED.review_body,
+        item_name = EXCLUDED.item_name,
+        item_subtitle = EXCLUDED.item_subtitle,
+        image_url = EXCLUDED.image_url,
+        updated_at = NOW()
+      RETURNING
+        id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
       `,
-      [spotifyUserId, album_id, rating]
+      [
+        spotifyUserId,
+        itemType === "album" ? itemId : null,
+        itemType,
+        itemId,
+        rating,
+        reviewTitle || null,
+        reviewBody || null,
+        itemName || null,
+        itemSubtitle || null,
+        imageUrl || null,
+      ]
     );
 
     return res.json(result.rows[0]);
@@ -472,10 +579,11 @@ app.get("/api/ratings", requireAuth, async (req, res) => {
 
     const result = await pool.query(
       `
-      SELECT id, user_id, album_id, rating, created_at
+      SELECT
+        id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
       FROM ratings
       WHERE user_id = $1
-      ORDER BY created_at DESC
+      ORDER BY updated_at DESC, created_at DESC
       `,
       [spotifyUserId]
     );

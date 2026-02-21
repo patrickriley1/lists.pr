@@ -892,6 +892,7 @@ function App() {
               >
                 View My Lists
               </button>
+              <button onClick={loginSpotify}>Re-link Spotify</button>
               <button onClick={logout}>Logout</button>
             </div>
           </div>

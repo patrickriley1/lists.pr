@@ -44,7 +44,6 @@ function App() {
   const [userLists, setUserLists] = useState([]);
   const [activeListId, setActiveListId] = useState(null);
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
-  const [listMenuOpenId, setListMenuOpenId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
 
   const [albumMetaById, setAlbumMetaById] = useState({});
@@ -441,7 +440,6 @@ function App() {
     if (!response.ok) return;
 
     setUserLists((prev) => prev.filter((entry) => entry.id !== listId));
-    setListMenuOpenId(null);
     if (activeListId === listId) {
       setActiveListId(null);
     }
@@ -1040,48 +1038,6 @@ function App() {
               >
                 <div className="listPreviewHeader">
                   <p className="listPreviewTitle">{list.name}</p>
-                  <div className="listCardMenuWrap">
-                    <button
-                      type="button"
-                      className="listCardMenuButton"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setListMenuOpenId(list.id);
-                      }}
-                    >
-                      ⋮
-                    </button>
-                    {listMenuOpenId === list.id ? (
-                      <div className="listCardMenu" onClick={(event) => event.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveListId(list.id);
-                            setListMenuOpenId(null);
-                          }}
-                        >
-                          View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void renameList(list.id);
-                            setListMenuOpenId(null);
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void deleteList(list.id);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
                 </div>
                 <div className="listPreviewImages">
                   {[0, 1, 2, 3].map((slot) => {
@@ -1102,9 +1058,27 @@ function App() {
           <div className="myListsPanel">
             <div className="selectedListHeader">
               <h3>{activeList.name}</h3>
-              <button type="button" onClick={() => setActiveListId(null)}>
-                Close
-              </button>
+              <div className="selectedListActions">
+                <button type="button" onClick={() => setActiveListId(null)}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void renameList(activeList.id);
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void deleteList(activeList.id);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
             {(activeList.items || []).length === 0 ? (
               <p>No items in this list yet.</p>
@@ -1112,7 +1086,7 @@ function App() {
               <div className="listItemsGrid">
                 {[...(activeList.items || [])]
                   .sort((a, b) => (a.position || 0) - (b.position || 0))
-                  .map((item) => (
+                  .map((item, index) => (
                     <div
                       key={item.id}
                       className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
@@ -1126,6 +1100,7 @@ function App() {
                       }}
                       onDragEnd={() => setDraggingItemId(null)}
                     >
+                      <span className="listItemPosition">{index + 1}</span>
                       {item.image_url ? (
                         <img src={item.image_url} alt={item.item_name} className="listItemImage" />
                       ) : (

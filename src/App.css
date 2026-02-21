@@ -231,10 +231,29 @@
   flex-direction: column;
   gap: 6px;
   cursor: grab;
+  position: relative;
 }
 
 .listItemCard.dragging {
   opacity: 0.5;
+}
+
+.listItemPosition {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #2f2f2f;
+  color: var(--light);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .listItemImage {
@@ -282,45 +301,6 @@
   gap: 10px;
 }
 
-.listCardMenuWrap {
-  position: relative;
-}
-
-.listCardMenuButton {
-  padding: 2px 4px;
-  min-width: auto;
-  line-height: 1;
-  background: transparent;
-  border: none;
-  color: var(--light);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.listPreviewCard:hover .listCardMenuButton {
-  opacity: 1;
-}
-
-.listCardMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: #101010;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 8px;
-  z-index: 12;
-  min-width: 120px;
-}
-
-.listCardMenu button {
-  width: 100%;
-  text-align: left;
-}
-
 .selectedListHeader {
   display: flex;
   justify-content: space-between;
@@ -330,6 +310,12 @@
 
 .selectedListHeader h3 {
   margin: 0;
+}
+
+.selectedListActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .listPreviewImages {

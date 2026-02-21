@@ -149,6 +149,56 @@ async function ensureCoreTables() {
     ALTER TABLE app_users
     ADD COLUMN IF NOT EXISTS spotify_refresh_token TEXT
   `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS item_type TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS item_id TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS item_name TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS item_subtitle TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS image_url TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE list_items
+    ADD COLUMN IF NOT EXISTS position INT
+  `);
+
+  await pool.query(`
+    UPDATE list_items
+    SET
+      item_type = COALESCE(item_type, 'album'),
+      item_id = COALESCE(item_id, album_id),
+      item_name = COALESCE(item_name, album_name),
+      item_subtitle = COALESCE(item_subtitle, artist_name),
+      position = COALESCE(position, id)
+    WHERE
+      item_type IS NULL OR
+      item_id IS NULL OR
+      item_name IS NULL OR
+      position IS NULL
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS list_items_unique_item
+    ON list_items (list_id, item_type, item_id)
+  `);
 }
 
 app.use(cors());
@@ -457,14 +507,18 @@ app.post("/api/lists", requireAuth, async (req, res) => {
 
 app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
   const listId = Number(req.params.id);
-  const { album_id, album_name, artist_name } = req.body;
+  const { item_type, item_id, item_name, item_subtitle, image_url } = req.body;
 
   if (Number.isNaN(listId)) {
     return res.status(400).json({ error: "Invalid list id" });
   }
 
-  if (!album_id || !album_name) {
-    return res.status(400).json({ error: "album_id and album_name are required" });
+  if (!item_type || !item_id || !item_name) {
+    return res.status(400).json({ error: "item_type, item_id, and item_name are required" });
+  }
+
+  if (!["album", "track", "artist"].includes(item_type)) {
+    return res.status(400).json({ error: "item_type must be one of album, track, artist" });
   }
 
   try {
@@ -482,23 +536,101 @@ app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "You do not have access to this list" });
     }
 
+    const positionResult = await pool.query(
+      "SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM list_items WHERE list_id = $1",
+      [listId]
+    );
+
+    const nextPosition = positionResult.rows[0]?.next_position || 1;
+
     const result = await pool.query(
       `
-      INSERT INTO list_items (list_id, album_id, album_name, artist_name)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (list_id, album_id)
+      INSERT INTO list_items (
+        list_id, item_type, item_id, item_name, item_subtitle, image_url, position,
+        album_id, album_name, artist_name
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $3, $4, $5)
+      ON CONFLICT (list_id, item_type, item_id)
       DO UPDATE SET
-        album_name = EXCLUDED.album_name,
-        artist_name = EXCLUDED.artist_name
-      RETURNING id, list_id, album_id, album_name, artist_name, added_at
+        item_name = EXCLUDED.item_name,
+        item_subtitle = EXCLUDED.item_subtitle,
+        image_url = EXCLUDED.image_url,
+        album_name = EXCLUDED.item_name,
+        artist_name = EXCLUDED.item_subtitle
+      RETURNING
+        id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
       `,
-      [listId, album_id, album_name, artist_name ?? null]
+      [listId, item_type, item_id, item_name, item_subtitle ?? null, image_url ?? null, nextPosition]
     );
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error("add list item error", error);
     return res.status(500).json({ error: "Failed to add item to list" });
+  }
+});
+
+app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
+  const listId = Number(req.params.id);
+  const { ordered_item_ids } = req.body;
+
+  if (Number.isNaN(listId)) {
+    return res.status(400).json({ error: "Invalid list id" });
+  }
+
+  if (!Array.isArray(ordered_item_ids) || ordered_item_ids.length === 0) {
+    return res.status(400).json({ error: "ordered_item_ids must be a non-empty array" });
+  }
+
+  try {
+    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
+    if (!spotifyUserId) {
+      return res.status(400).json({ error: "Link Spotify before reordering list items" });
+    }
+
+    const ownerResult = await pool.query(
+      "SELECT id FROM lists WHERE id = $1 AND user_id = $2",
+      [listId, spotifyUserId]
+    );
+
+    if (ownerResult.rows.length === 0) {
+      return res.status(403).json({ error: "You do not have access to this list" });
+    }
+
+    await pool.query("BEGIN");
+
+    for (let i = 0; i < ordered_item_ids.length; i += 1) {
+      const itemId = Number(ordered_item_ids[i]);
+      if (Number.isNaN(itemId)) continue;
+
+      await pool.query(
+        `
+        UPDATE list_items
+        SET position = $1
+        WHERE id = $2 AND list_id = $3
+        `,
+        [i + 1, itemId, listId]
+      );
+    }
+
+    await pool.query("COMMIT");
+
+    const itemsResult = await pool.query(
+      `
+      SELECT
+        id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
+      FROM list_items
+      WHERE list_id = $1
+      ORDER BY position ASC, added_at ASC
+      `,
+      [listId]
+    );
+
+    return res.json({ items: itemsResult.rows });
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    console.error("reorder list items error", error);
+    return res.status(500).json({ error: "Failed to reorder list items" });
   }
 });
 
@@ -527,10 +659,11 @@ app.get("/api/lists", requireAuth, async (req, res) => {
 
     const itemsResult = await pool.query(
       `
-      SELECT id, list_id, album_id, album_name, artist_name, added_at
+      SELECT
+        id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
       FROM list_items
       WHERE list_id = ANY($1::int[])
-      ORDER BY added_at DESC
+      ORDER BY position ASC, added_at ASC
       `,
       [listIds]
     );

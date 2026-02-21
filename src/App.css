@@ -209,6 +209,62 @@
   margin: 2px 0;
 }
 
+.listRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.listReorderActions {
+  display: flex;
+  gap: 8px;
+}
+
+.listPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.listPreviewCard {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--light);
+  padding: 10px;
+  text-align: left;
+}
+
+.listPreviewCard.active {
+  border-color: var(--primary);
+}
+
+.listPreviewTitle {
+  margin: 0 0 10px 0;
+}
+
+.listPreviewImages {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.listPreviewImages img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.previewPlaceholder {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: #191919;
+  border: 1px dashed #2f2f2f;
+}
+
 .searchCards {
   display: flex;
   gap: 12px;
@@ -241,6 +297,39 @@
 
 .searchBar input {
   flex: 1;
+}
+
+.resultActions {
+  display: flex;
+}
+
+.addListMenuWrap {
+  position: relative;
+}
+
+.addListDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.addListDropdown button {
+  width: 100%;
+  text-align: left;
+}
+
+.dropdownEmpty {
+  margin: 0;
+  color: #b9b9b9;
 }
 
 .resultsList {
@@ -396,6 +485,10 @@
     grid-template-columns: 1fr;
   }
 
+  .listPreviewGrid {
+    grid-template-columns: 1fr;
+  }
+
   .searchBar {
     flex-direction: column;
     align-items: stretch;
@@ -430,5 +523,10 @@
 
   .trackList {
     margin-left: 22px;
+  }
+
+  .addListDropdown {
+    left: auto;
+    right: 0;
   }
 }

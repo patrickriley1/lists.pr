@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import "./App.css";
@@ -39,16 +39,21 @@ function App() {
   const [searchError, setSearchError] = useState("");
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
+
+  const [userLists, setUserLists] = useState([]);
+  const [activeListId, setActiveListId] = useState(null);
+  const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+
   const [albumMetaById, setAlbumMetaById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
   const [ratingEntries, setRatingEntries] = useState([]);
-  const [savedAlbums, setSavedAlbums] = useState([]);
-  const [defaultListId, setDefaultListId] = useState(() => {
-    const parsed = Number(localStorage.getItem("default_list_id"));
-    return Number.isNaN(parsed) ? null : parsed;
-  });
 
   const canUseApp = Boolean(authToken && linkedSpotifyUserId);
+
+  const activeList = useMemo(
+    () => userLists.find((list) => list.id === activeListId) || null,
+    [activeListId, userLists]
+  );
 
   function getAuthHeaders() {
     if (!authToken) return {};
@@ -59,16 +64,15 @@ function App() {
     setAuthToken("");
     setAuthUser(null);
     setLinkedSpotifyUserId(null);
-    setDefaultListId(null);
     setAlbumMetaById({});
     setAlbumRatings({});
     setRatingEntries([]);
-    setSavedAlbums([]);
+    setUserLists([]);
+    setActiveListId(null);
     setResults([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
     localStorage.removeItem("linked_spotify_user_id");
-    localStorage.removeItem("default_list_id");
     localStorage.removeItem("spotify_verifier");
   }
 
@@ -282,22 +286,13 @@ function App() {
           return next;
         });
 
-        window.history.replaceState({}, document.title, "/");
+        window.history.replaceState({}, document.title, location.pathname);
       })
       .catch((error) => {
         console.error(error);
         setSearchError("Could not link Spotify. Please try again.");
       });
-  }, [authToken, apiBaseURL]);
-
-  useEffect(() => {
-    if (defaultListId) {
-      localStorage.setItem("default_list_id", String(defaultListId));
-      return;
-    }
-
-    localStorage.removeItem("default_list_id");
-  }, [defaultListId]);
+  }, [authToken, apiBaseURL, location.pathname]);
 
   useEffect(() => {
     if (!authToken || !linkedSpotifyUserId) return;
@@ -328,21 +323,21 @@ function App() {
         }, {});
         setAlbumRatings(ratingsMap);
 
-        const preferredList = listsData.find((list) => list.name === "My List") || listsData[0];
-        if (!preferredList) {
-          setDefaultListId(null);
-          setSavedAlbums([]);
-          return;
-        }
+        const normalizedLists = (listsData || []).map((list) => ({
+          ...list,
+          items: (list.items || []).map((item) => ({
+            id: item.id,
+            item_type: item.item_type,
+            item_id: item.item_id,
+            item_name: item.item_name,
+            item_subtitle: item.item_subtitle,
+            image_url: item.image_url,
+            position: item.position,
+          })),
+        }));
 
-        setDefaultListId(preferredList.id);
-        setSavedAlbums(
-          (preferredList.items || []).map((item) => ({
-            id: item.album_id,
-            name: item.album_name,
-            artists: item.artist_name || "",
-          }))
-        );
+        setUserLists(normalizedLists);
+        setActiveListId((prev) => prev || normalizedLists[0]?.id || null);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -363,15 +358,6 @@ function App() {
     spotifyApiFetch(`/albums?ids=${encodeURIComponent(batchIds)}`)
       .then(async (response) => {
         if (!response || !response.ok) {
-          setAlbumMetaById((prev) => {
-            const next = { ...prev };
-            albumIdsToLoad.forEach((id) => {
-              if (!next[id]) {
-                next[id] = { name: "Spotify reconnect required", artists: "Unknown Artist" };
-              }
-            });
-            return next;
-          });
           return;
         }
 
@@ -388,42 +374,166 @@ function App() {
           return next;
         });
       })
-      .catch(() => {
-        setAlbumMetaById((prev) => {
-          const next = { ...prev };
-          albumIdsToLoad.forEach((id) => {
-            if (!next[id]) {
-              next[id] = { name: "Spotify reconnect required", artists: "Unknown Artist" };
-            }
-          });
-          return next;
-        });
-      });
+      .catch(() => {});
   }, [canUseApp, ratingEntries, albumMetaById]);
 
-  async function ensureDefaultList() {
-    if (!defaultListId) {
-      const response = await fetch(`${apiBaseURL}/api/lists`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          name: "My List",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create default list");
-      }
-
-      const list = await response.json();
-      setDefaultListId(list.id);
-      return list.id;
+  function buildItemPayload(item) {
+    if (searchType === "artist") {
+      return {
+        item_type: "artist",
+        item_id: item.id,
+        item_name: item.name,
+        item_subtitle: "Artist",
+        image_url: item.images?.[0]?.url || null,
+      };
     }
 
-    return defaultListId;
+    if (searchType === "track") {
+      return {
+        item_type: "track",
+        item_id: item.id,
+        item_name: item.name,
+        item_subtitle: item.artists?.map((artist) => artist.name).join(", ") || "",
+        image_url: item.album?.images?.[0]?.url || null,
+      };
+    }
+
+    return {
+      item_type: "album",
+      item_id: item.id,
+      item_name: item.name,
+      item_subtitle: item.artists?.map((artist) => artist.name).join(", ") || "",
+      image_url: item.images?.[0]?.url || null,
+    };
+  }
+
+  async function createNewList() {
+    const rawName = window.prompt("Name your new list");
+    const name = rawName?.trim();
+
+    if (!name) return null;
+
+    const response = await fetch(`${apiBaseURL}/api/lists`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const list = await response.json();
+    const normalizedList = { ...list, items: [] };
+
+    setUserLists((prev) => [...prev, normalizedList]);
+    setActiveListId(normalizedList.id);
+
+    return normalizedList;
+  }
+
+  async function addItemToList(listId, item) {
+    if (!canUseApp) return;
+
+    const payload = buildItemPayload(item);
+
+    const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const savedItem = await response.json();
+
+    setUserLists((prev) =>
+      prev.map((list) => {
+        if (list.id !== listId) return list;
+
+        const exists = (list.items || []).some(
+          (entry) => entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
+        );
+
+        if (exists) {
+          return {
+            ...list,
+            items: list.items.map((entry) =>
+              entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
+                ? { ...entry, ...savedItem }
+                : entry
+            ),
+          };
+        }
+
+        return {
+          ...list,
+          items: [...(list.items || []), savedItem],
+        };
+      })
+    );
+
+    setAddToListOpenFor(null);
+  }
+
+  async function reorderListItems(listId, orderedItemIds) {
+    const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items/reorder`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ ordered_item_ids: orderedItemIds }),
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+
+    setUserLists((prev) =>
+      prev.map((list) => (list.id === listId ? { ...list, items: data.items || [] } : list))
+    );
+  }
+
+  async function moveListItem(listId, itemId, direction) {
+    const list = userLists.find((entry) => entry.id === listId);
+    if (!list) return;
+
+    const sortedItems = [...(list.items || [])].sort(
+      (a, b) => (a.position || 0) - (b.position || 0)
+    );
+
+    const index = sortedItems.findIndex((entry) => entry.id === itemId);
+    if (index < 0) return;
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sortedItems.length) return;
+
+    [sortedItems[index], sortedItems[targetIndex]] = [sortedItems[targetIndex], sortedItems[index]];
+
+    const rePositioned = sortedItems.map((entry, positionIndex) => ({
+      ...entry,
+      position: positionIndex + 1,
+    }));
+
+    setUserLists((prev) =>
+      prev.map((entry) => (entry.id === listId ? { ...entry, items: rePositioned } : entry))
+    );
+
+    void reorderListItems(
+      listId,
+      rePositioned.map((entry) => entry.id)
+    );
   }
 
   async function searchSpotify() {
@@ -438,7 +548,7 @@ function App() {
       );
 
       if (!response) {
-        setSearchError("Spotify session unavailable. Re-link Spotify from Home.");
+        setSearchError("Spotify session unavailable. Re-link Spotify from the user menu.");
         return;
       }
 
@@ -549,36 +659,49 @@ function App() {
     });
   }
 
-  async function addAlbumToList(album) {
-    if (!canUseApp) return;
-    if (savedAlbums.some((savedAlbum) => savedAlbum.id === album.id)) return;
+  function renderAddToListMenu(item) {
+    const menuKey = `${searchType}:${item.id}`;
 
-    const targetListId = await ensureDefaultList();
-    if (!targetListId) return;
+    return (
+      <div className="addListMenuWrap">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAddToListOpenFor((prev) => (prev === menuKey ? null : menuKey));
+          }}
+        >
+          Add to List
+        </button>
 
-    const response = await fetch(`${apiBaseURL}/api/lists/${targetListId}/items`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify({
-        album_id: album.id,
-        album_name: album.name,
-        artist_name: album.artists?.map((artist) => artist.name).join(", "),
-      }),
-    });
-
-    if (!response.ok) return;
-
-    setSavedAlbums((prev) => [
-      ...prev,
-      {
-        id: album.id,
-        name: album.name,
-        artists: album.artists?.map((artist) => artist.name).join(", "),
-      },
-    ]);
+        {addToListOpenFor === menuKey ? (
+          <div className="addListDropdown" onClick={(e) => e.stopPropagation()}>
+            {userLists.length === 0 ? <p className="dropdownEmpty">No lists yet.</p> : null}
+            {userLists.map((list, index) => (
+              <button
+                key={list.id}
+                type="button"
+                onClick={() => {
+                  void addItemToList(list.id, item);
+                }}
+              >
+                {index + 1}. {list.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={async () => {
+                const newList = await createNewList();
+                if (!newList) return;
+                await addItemToList(newList.id, item);
+              }}
+            >
+              + New List
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   function renderAuthCard() {
@@ -679,6 +802,7 @@ function App() {
             Artist Search
           </button>
         </div>
+
         <form
           className="searchBar"
           onSubmit={(e) => {
@@ -695,7 +819,9 @@ function App() {
             {searchLoading ? "Searching..." : "Search"}
           </button>
         </form>
+
         {searchError ? <p className="authError">{searchError}</p> : null}
+
         <div className="resultsList">
           {results.map((item) => {
             const isAlbum = searchType === "album";
@@ -732,6 +858,8 @@ function App() {
                   </div>
                 </div>
 
+                <div className="resultActions">{renderAddToListMenu(item)}</div>
+
                 {isExpanded ? (
                   <div className="albumExpanded">
                     <p>Released: {releaseYear || "Unknown"}</p>
@@ -743,16 +871,6 @@ function App() {
                         }}
                       >
                         {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void addAlbumToList(item);
-                        }}
-                      >
-                        {savedAlbums.some((savedAlbum) => savedAlbum.id === item.id)
-                          ? "Added"
-                          : "Add to List"}
                       </button>
                     </div>
                     <p>Tracklist</p>
@@ -780,42 +898,91 @@ function App() {
       return <Navigate to="/" replace />;
     }
 
+    const sortedLists = [...userLists].sort((a, b) => a.id - b.id);
+
     return (
       <div className="libraryPage">
         <h2 className="pageTitle">Library / Profile</h2>
-        <div className="libraryGrid">
-          <div className="myListsPanel">
-            <h3>My List</h3>
-            {savedAlbums.length === 0 ? (
-              <p>No albums saved yet.</p>
-            ) : (
-              <div className="myListItems">
-                {savedAlbums.map((album) => (
-                  <div key={album.id} className="myListItem">
-                    <p>{album.name}</p>
-                    <p>{album.artists}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
+        <div className="listPreviewGrid">
+          {sortedLists.map((list, index) => {
+            const previewItems = [...(list.items || [])]
+              .sort((a, b) => (a.position || 0) - (b.position || 0))
+              .slice(0, 4);
+
+            return (
+              <button
+                type="button"
+                key={list.id}
+                className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
+                onClick={() => setActiveListId(list.id)}
+              >
+                <p className="listPreviewTitle">
+                  {index + 1}. {list.name}
+                </p>
+                <div className="listPreviewImages">
+                  {[0, 1, 2, 3].map((slot) => {
+                    const previewItem = previewItems[slot];
+                    return previewItem?.image_url ? (
+                      <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
+                    ) : (
+                      <div key={slot} className="previewPlaceholder" />
+                    );
+                  })}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {activeList ? (
           <div className="myListsPanel">
-            <h3>My Reviews</h3>
-            {ratingEntries.length === 0 ? (
-              <p>No ratings yet.</p>
+            <h3>{activeList.name}</h3>
+            {(activeList.items || []).length === 0 ? (
+              <p>No items in this list yet.</p>
             ) : (
               <div className="myListItems">
-                {ratingEntries.map((entry) => (
-                  <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
-                    <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
-                    <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
-                    <p>Rating: {entry.rating}/10</p>
-                  </div>
-                ))}
+                {[...(activeList.items || [])]
+                  .sort((a, b) => (a.position || 0) - (b.position || 0))
+                  .map((item, index) => (
+                    <div key={item.id} className="myListItem listRow">
+                      <p>
+                        {index + 1}. {item.item_name}
+                      </p>
+                      <p>{item.item_subtitle}</p>
+                      <div className="listReorderActions">
+                        <button type="button" onClick={() => void moveListItem(activeList.id, item.id, "up")}>
+                          Up
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void moveListItem(activeList.id, item.id, "down")}
+                        >
+                          Down
+                        </button>
+                      </div>
+                    </div>
+                  ))}
               </div>
             )}
           </div>
+        ) : null}
+
+        <div className="myListsPanel">
+          <h3>My Reviews</h3>
+          {ratingEntries.length === 0 ? (
+            <p>No ratings yet.</p>
+          ) : (
+            <div className="myListItems">
+              {ratingEntries.map((entry) => (
+                <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
+                  <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
+                  <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
+                  <p>Rating: {entry.rating}/10</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );

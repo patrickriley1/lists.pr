@@ -45,6 +45,7 @@ function App() {
   const [activeListId, setActiveListId] = useState(null);
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
   const [listMenuOpenId, setListMenuOpenId] = useState(null);
+  const [draggingItemId, setDraggingItemId] = useState(null);
 
   const [albumMetaById, setAlbumMetaById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
@@ -621,7 +622,9 @@ function App() {
     );
   }
 
-  async function moveListItem(listId, itemId, direction) {
+  async function moveListItemByDrag(listId, targetItemId) {
+    if (!draggingItemId || draggingItemId === targetItemId) return;
+
     const list = userLists.find((entry) => entry.id === listId);
     if (!list) return;
 
@@ -629,13 +632,12 @@ function App() {
       (a, b) => (a.position || 0) - (b.position || 0)
     );
 
-    const index = sortedItems.findIndex((entry) => entry.id === itemId);
-    if (index < 0) return;
+    const fromIndex = sortedItems.findIndex((entry) => entry.id === draggingItemId);
+    const toIndex = sortedItems.findIndex((entry) => entry.id === targetItemId);
+    if (fromIndex < 0 || toIndex < 0) return;
 
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= sortedItems.length) return;
-
-    [sortedItems[index], sortedItems[targetIndex]] = [sortedItems[targetIndex], sortedItems[index]];
+    const [movedItem] = sortedItems.splice(fromIndex, 1);
+    sortedItems.splice(toIndex, 0, movedItem);
 
     const rePositioned = sortedItems.map((entry, positionIndex) => ({
       ...entry,
@@ -650,6 +652,8 @@ function App() {
       listId,
       rePositioned.map((entry) => entry.id)
     );
+
+    setDraggingItemId(null);
   }
 
   async function searchSpotify() {
@@ -1032,7 +1036,7 @@ function App() {
                 type="button"
                 key={list.id}
                 className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
-                onClick={() => setActiveListId(list.id)}
+                onClick={() => (list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id))}
               >
                 <div className="listPreviewHeader">
                   <p className="listPreviewTitle">{list.name}</p>
@@ -1105,26 +1109,30 @@ function App() {
             {(activeList.items || []).length === 0 ? (
               <p>No items in this list yet.</p>
             ) : (
-              <div className="myListItems">
+              <div className="listItemsGrid">
                 {[...(activeList.items || [])]
                   .sort((a, b) => (a.position || 0) - (b.position || 0))
-                  .map((item, index) => (
-                    <div key={item.id} className="myListItem listRow">
-                      <p>
-                        {index + 1}. {item.item_name}
-                      </p>
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
+                      draggable
+                      onDragStart={() => setDraggingItemId(item.id)}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                      }}
+                      onDrop={() => {
+                        void moveListItemByDrag(activeList.id, item.id);
+                      }}
+                      onDragEnd={() => setDraggingItemId(null)}
+                    >
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.item_name} className="listItemImage" />
+                      ) : (
+                        <div className="listItemImage placeholder" />
+                      )}
+                      <p>{item.item_name}</p>
                       <p>{item.item_subtitle}</p>
-                      <div className="listReorderActions">
-                        <button type="button" onClick={() => void moveListItem(activeList.id, item.id, "up")}>
-                          Up
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void moveListItem(activeList.id, item.id, "down")}
-                        >
-                          Down
-                        </button>
-                      </div>
                     </div>
                   ))}
               </div>

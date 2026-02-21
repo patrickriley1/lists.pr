@@ -220,6 +220,36 @@
   gap: 8px;
 }
 
+.listItemsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.listItemCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: grab;
+}
+
+.listItemCard.dragging {
+  opacity: 0.5;
+}
+
+.listItemImage {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.listItemImage.placeholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
 .listPreviewGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -545,6 +575,10 @@
 
   .listPreviewGrid {
     grid-template-columns: 1fr;
+  }
+
+  .listItemsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .searchBar {

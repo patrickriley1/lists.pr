@@ -56,6 +56,77 @@ function LibraryPage({
   }
 
   const sortedLists = [...userLists].sort((a, b) => a.id - b.id);
+  const previewsPerRow = 4;
+  const listRows = [];
+
+  for (let index = 0; index < sortedLists.length; index += previewsPerRow) {
+    listRows.push(sortedLists.slice(index, index + previewsPerRow));
+  }
+
+  function renderActiveListPanel() {
+    if (!activeList) return null;
+
+    return (
+      <div className="myListsPanel">
+        <div className="selectedListHeader">
+          <h3>{activeList.name}</h3>
+          <div className="selectedListActions">
+            <button type="button" onClick={() => setActiveListId(null)}>
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void renameList(activeList.id);
+              }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void deleteList(activeList.id);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+        {(activeList.items || []).length === 0 ? (
+          <p>No items in this list yet.</p>
+        ) : (
+          <div className="listItemsGrid">
+            {[...(activeList.items || [])]
+              .sort((a, b) => (a.position || 0) - (b.position || 0))
+              .map((item, index) => (
+                <div
+                  key={item.id}
+                  className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
+                  draggable
+                  onDragStart={() => setDraggingItemId(item.id)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDrop={() => {
+                    void moveListItemByDrag(activeList.id, item.id);
+                  }}
+                  onDragEnd={() => setDraggingItemId(null)}
+                >
+                  <span className="listItemPosition">{index + 1}</span>
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.item_name} className="listItemImage" />
+                  ) : (
+                    <div className="listItemImage placeholder" />
+                  )}
+                  <p>{item.item_name}</p>
+                  <p>{item.item_subtitle}</p>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="libraryPage">
@@ -65,97 +136,49 @@ function LibraryPage({
         <div className="libraryColumn listsColumn">
           <h3>My Lists</h3>
 
-          <div className="listPreviewGrid">
-            {sortedLists.map((list) => {
-              const previewItems = [...(list.items || [])]
-                .sort((a, b) => (a.position || 0) - (b.position || 0))
-                .slice(0, 4);
+          <div className="listPreviewRows">
+            {listRows.map((row, rowIndex) => {
+              const rowHasActiveList = row.some((list) => list.id === activeListId);
 
               return (
-                <button
-                  type="button"
-                  key={list.id}
-                  className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
-                  onClick={() => (list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id))}
-                >
-                  <div className="listPreviewHeader">
-                    <p className="listPreviewTitle">{list.name}</p>
-                  </div>
-                  <div className="listPreviewImages">
-                    {[0, 1, 2, 3].map((slot) => {
-                      const previewItem = previewItems[slot];
-                      return previewItem?.image_url ? (
-                        <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
-                      ) : (
-                        <div key={slot} className="previewPlaceholder" />
+                <div key={`preview-row-${rowIndex}`} className="listPreviewRowBlock">
+                  <div className="listPreviewGrid">
+                    {row.map((list) => {
+                      const previewItems = [...(list.items || [])]
+                        .sort((a, b) => (a.position || 0) - (b.position || 0))
+                        .slice(0, 4);
+
+                      return (
+                        <button
+                          type="button"
+                          key={list.id}
+                          className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
+                          onClick={() =>
+                            list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id)
+                          }
+                        >
+                          <div className="listPreviewHeader">
+                            <p className="listPreviewTitle">{list.name}</p>
+                          </div>
+                          <div className="listPreviewImages">
+                            {[0, 1, 2, 3].map((slot) => {
+                              const previewItem = previewItems[slot];
+                              return previewItem?.image_url ? (
+                                <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
+                              ) : (
+                                <div key={slot} className="previewPlaceholder" />
+                              );
+                            })}
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
-                </button>
+                  {rowHasActiveList ? renderActiveListPanel() : null}
+                </div>
               );
             })}
           </div>
-
-          {activeList ? (
-            <div className="myListsPanel">
-              <div className="selectedListHeader">
-                <h3>{activeList.name}</h3>
-                <div className="selectedListActions">
-                  <button type="button" onClick={() => setActiveListId(null)}>
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void renameList(activeList.id);
-                    }}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void deleteList(activeList.id);
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              {(activeList.items || []).length === 0 ? (
-                <p>No items in this list yet.</p>
-              ) : (
-                <div className="listItemsGrid">
-                  {[...(activeList.items || [])]
-                    .sort((a, b) => (a.position || 0) - (b.position || 0))
-                    .map((item, index) => (
-                      <div
-                        key={item.id}
-                        className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
-                        draggable
-                        onDragStart={() => setDraggingItemId(item.id)}
-                        onDragOver={(event) => {
-                          event.preventDefault();
-                        }}
-                        onDrop={() => {
-                          void moveListItemByDrag(activeList.id, item.id);
-                        }}
-                        onDragEnd={() => setDraggingItemId(null)}
-                      >
-                        <span className="listItemPosition">{index + 1}</span>
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.item_name} className="listItemImage" />
-                        ) : (
-                          <div className="listItemImage placeholder" />
-                        )}
-                        <p>{item.item_name}</p>
-                        <p>{item.item_subtitle}</p>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </div>
-          ) : null}
         </div>
 
         <div className="libraryColumn reviewsColumn">

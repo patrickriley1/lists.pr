@@ -200,9 +200,9 @@
 
 .libraryGrid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr);
   align-items: start;
-  gap: 24px;
+  gap: 36px;
 }
 
 .libraryColumn {
@@ -217,7 +217,23 @@
 }
 
 .listsColumn .listPreviewGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reviewsColumn {
+  margin-left: 12px;
+}
+
+.listPreviewRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.listPreviewRowBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .myListItem p {

@@ -62,7 +62,7 @@ function LibraryPage({
       <h2 className="pageTitle">Library</h2>
 
       <div className="libraryGrid">
-        <div className="libraryColumn">
+        <div className="libraryColumn listsColumn">
           <h3>My Lists</h3>
 
           <div className="listPreviewGrid">
@@ -158,7 +158,7 @@ function LibraryPage({
           ) : null}
         </div>
 
-        <div className="libraryColumn">
+        <div className="libraryColumn reviewsColumn">
           <div className="myListsPanel">
             <h3>My Reviews</h3>
             {ratingEntries.length === 0 ? (

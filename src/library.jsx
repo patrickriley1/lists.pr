@@ -9,6 +9,7 @@ function LibraryPage({
   renameList,
   deleteList,
   reorderListItems,
+  removeItemFromList,
   ratingEntries,
   albumMetaById,
 }) {
@@ -113,6 +114,19 @@ function LibraryPage({
                   }}
                   onDragEnd={() => setDraggingItemId(null)}
                 >
+                  <button
+                    type="button"
+                    className="removeListItemButton"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void removeItemFromList(activeList.id, item.id);
+                    }}
+                    aria-label={`Remove ${item.item_name} from ${activeList.name}`}
+                    title="Remove from list"
+                  >
+                    -
+                  </button>
                   <span className="listItemPosition">{index + 1}</span>
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.item_name} className="listItemImage" />
@@ -192,7 +206,7 @@ function LibraryPage({
                   <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
                     <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
                     <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
-                    <p>Rating: {entry.rating}/10</p>
+                    <p>Rating: {entry.rating}</p>
                   </div>
                 ))}
               </div>

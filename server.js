@@ -655,6 +655,77 @@ app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
   }
 });
 
+app.delete("/api/lists/:id/items/:itemId", requireAuth, async (req, res) => {
+  const listId = Number(req.params.id);
+  const listItemId = Number(req.params.itemId);
+
+  if (Number.isNaN(listId) || Number.isNaN(listItemId)) {
+    return res.status(400).json({ error: "Invalid list id or item id" });
+  }
+
+  try {
+    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
+    if (!spotifyUserId) {
+      return res.status(400).json({ error: "Link Spotify before removing list items" });
+    }
+
+    const ownerResult = await pool.query(
+      "SELECT id FROM lists WHERE id = $1 AND user_id = $2",
+      [listId, spotifyUserId]
+    );
+
+    if (ownerResult.rows.length === 0) {
+      return res.status(403).json({ error: "You do not have access to this list" });
+    }
+
+    const deleteResult = await pool.query(
+      `
+      DELETE FROM list_items
+      WHERE id = $1 AND list_id = $2
+      RETURNING id
+      `,
+      [listItemId, listId]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      return res.status(404).json({ error: "List item not found" });
+    }
+
+    await pool.query(
+      `
+      WITH ordered AS (
+        SELECT id, ROW_NUMBER() OVER (ORDER BY position ASC, added_at ASC) AS next_position
+        FROM list_items
+        WHERE list_id = $1
+      )
+      UPDATE list_items AS li
+      SET position = ordered.next_position
+      FROM ordered
+      WHERE li.id = ordered.id
+      `,
+      [listId]
+    );
+
+    await pool.query("UPDATE lists SET updated_at = NOW() WHERE id = $1", [listId]);
+
+    const itemsResult = await pool.query(
+      `
+      SELECT
+        id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
+      FROM list_items
+      WHERE list_id = $1
+      ORDER BY position ASC, added_at ASC
+      `,
+      [listId]
+    );
+
+    return res.json({ items: itemsResult.rows });
+  } catch (error) {
+    console.error("delete list item error", error);
+    return res.status(500).json({ error: "Failed to delete list item" });
+  }
+});
+
 app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
   const listId = Number(req.params.id);
   const { ordered_item_ids } = req.body;

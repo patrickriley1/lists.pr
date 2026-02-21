@@ -97,6 +97,29 @@
   opacity: 0.5;
 }
 
+.removeListItemButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid #8f1d1d;
+  background: #cc2a2a;
+  color: #fff;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeListItemButton:hover {
+  background: #e23838;
+}
+
 .listItemPosition {
   position: absolute;
   top: 12px;

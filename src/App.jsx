@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import SearchPage from "./search";
+import LibraryPage from "./library";
 import "./App.css";
 
 function App() {
@@ -34,29 +36,12 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [spotifyLinkError, setSpotifyLinkError] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [searchType, setSearchType] = useState("album");
-  const [results, setResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState("");
-  const [expandedAlbumId, setExpandedAlbumId] = useState(null);
-  const [albumDetailsById, setAlbumDetailsById] = useState({});
-
   const [userLists, setUserLists] = useState([]);
-  const [activeListId, setActiveListId] = useState(null);
-  const [addToListOpenFor, setAddToListOpenFor] = useState(null);
-  const [draggingItemId, setDraggingItemId] = useState(null);
-
   const [albumMetaById, setAlbumMetaById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
   const [ratingEntries, setRatingEntries] = useState([]);
 
   const canUseApp = Boolean(authToken && linkedSpotifyUserId);
-
-  const activeList = useMemo(
-    () => userLists.find((list) => list.id === activeListId) || null,
-    [activeListId, userLists]
-  );
 
   function getAuthHeaders() {
     if (!authToken) return {};
@@ -71,8 +56,6 @@ function App() {
     setAlbumRatings({});
     setRatingEntries([]);
     setUserLists([]);
-    setActiveListId(null);
-    setResults([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
     localStorage.removeItem("linked_spotify_user_id");
@@ -392,7 +375,6 @@ function App() {
         }));
 
         setUserLists(normalizedLists);
-        setActiveListId(null);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -421,9 +403,7 @@ function App() {
     setUserLists((prev) =>
       prev
         .map((entry) => (entry.id === listId ? { ...entry, name: updated.name, updated_at: updated.updated_at } : entry))
-        .sort(
-          (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
-        )
+        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
     );
   }
 
@@ -441,9 +421,6 @@ function App() {
     if (!response.ok) return;
 
     setUserLists((prev) => prev.filter((entry) => entry.id !== listId));
-    if (activeListId === listId) {
-      setActiveListId(null);
-    }
   }
 
   useEffect(() => {
@@ -479,36 +456,6 @@ function App() {
       .catch(() => {});
   }, [canUseApp, ratingEntries, albumMetaById]);
 
-  function buildItemPayload(item) {
-    if (searchType === "artist") {
-      return {
-        item_type: "artist",
-        item_id: item.id,
-        item_name: item.name,
-        item_subtitle: "Artist",
-        image_url: item.images?.[0]?.url || null,
-      };
-    }
-
-    if (searchType === "track") {
-      return {
-        item_type: "track",
-        item_id: item.id,
-        item_name: item.name,
-        item_subtitle: item.artists?.map((artist) => artist.name).join(", ") || "",
-        image_url: item.album?.images?.[0]?.url || null,
-      };
-    }
-
-    return {
-      item_type: "album",
-      item_id: item.id,
-      item_name: item.name,
-      item_subtitle: item.artists?.map((artist) => artist.name).join(", ") || "",
-      image_url: item.images?.[0]?.url || null,
-    };
-  }
-
   async function createNewList() {
     const rawName = window.prompt("Name your new list");
     const name = rawName?.trim();
@@ -540,10 +487,8 @@ function App() {
     return normalizedList;
   }
 
-  async function addItemToList(listId, item) {
+  async function addItemToList(listId, payload) {
     if (!canUseApp) return;
-
-    const payload = buildItemPayload(item);
 
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items`, {
       method: "POST",
@@ -561,35 +506,33 @@ function App() {
     const savedItem = await response.json();
 
     setUserLists((prev) =>
-      prev.map((list) => {
-        if (list.id !== listId) return list;
+      prev
+        .map((list) => {
+          if (list.id !== listId) return list;
 
-        const exists = (list.items || []).some(
-          (entry) => entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
-        );
+          const exists = (list.items || []).some(
+            (entry) => entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
+          );
 
-        if (exists) {
+          if (exists) {
+            return {
+              ...list,
+              items: list.items.map((entry) =>
+                entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
+                  ? { ...entry, ...savedItem }
+                  : entry
+              ),
+            };
+          }
+
           return {
             ...list,
-            items: list.items.map((entry) =>
-              entry.item_type === savedItem.item_type && entry.item_id === savedItem.item_id
-                ? { ...entry, ...savedItem }
-                : entry
-            ),
+            updated_at: new Date().toISOString(),
+            items: [...(list.items || []), savedItem],
           };
-        }
-
-        return {
-          ...list,
-          updated_at: new Date().toISOString(),
-          items: [...(list.items || []), savedItem],
-        };
-      }).sort(
-        (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
-      )
+        })
+        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
     );
-
-    setAddToListOpenFor(null);
   }
 
   async function reorderListItems(listId, orderedItemIds) {
@@ -611,135 +554,10 @@ function App() {
     setUserLists((prev) =>
       prev
         .map((list) =>
-          list.id === listId
-            ? { ...list, items: data.items || [], updated_at: new Date().toISOString() }
-            : list
+          list.id === listId ? { ...list, items: data.items || [], updated_at: new Date().toISOString() } : list
         )
-        .sort(
-          (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
-        )
+        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
     );
-  }
-
-  async function moveListItemByDrag(listId, targetItemId) {
-    if (!draggingItemId || draggingItemId === targetItemId) return;
-
-    const list = userLists.find((entry) => entry.id === listId);
-    if (!list) return;
-
-    const sortedItems = [...(list.items || [])].sort(
-      (a, b) => (a.position || 0) - (b.position || 0)
-    );
-
-    const fromIndex = sortedItems.findIndex((entry) => entry.id === draggingItemId);
-    const toIndex = sortedItems.findIndex((entry) => entry.id === targetItemId);
-    if (fromIndex < 0 || toIndex < 0) return;
-
-    const [movedItem] = sortedItems.splice(fromIndex, 1);
-    sortedItems.splice(toIndex, 0, movedItem);
-
-    const rePositioned = sortedItems.map((entry, positionIndex) => ({
-      ...entry,
-      position: positionIndex + 1,
-    }));
-
-    setUserLists((prev) =>
-      prev.map((entry) => (entry.id === listId ? { ...entry, items: rePositioned } : entry))
-    );
-
-    void reorderListItems(
-      listId,
-      rePositioned.map((entry) => entry.id)
-    );
-
-    setDraggingItemId(null);
-  }
-
-  async function searchSpotify() {
-    if (!search.trim() || !canUseApp) return;
-
-    setSearchLoading(true);
-    setSearchError("");
-
-    try {
-      const response = await spotifyApiFetch(
-        `/search?q=${encodeURIComponent(search)}&type=${searchType}`
-      );
-
-      if (!response) {
-        setSearchError("Spotify session unavailable. Re-link Spotify from the user menu.");
-        return;
-      }
-
-      if (!response.ok) {
-        setSearchError("Search failed. Please try again.");
-        return;
-      }
-
-      const data = await response.json();
-
-      if (searchType === "album") {
-        setResults(data.albums?.items || []);
-        setExpandedAlbumId(null);
-        return;
-      }
-
-      if (searchType === "track") {
-        setResults(data.tracks?.items || []);
-        setExpandedAlbumId(null);
-        return;
-      }
-
-      setResults(data.artists?.items || []);
-      setExpandedAlbumId(null);
-    } catch {
-      setSearchError("Search failed. Check your connection and try again.");
-    } finally {
-      setSearchLoading(false);
-    }
-  }
-
-  function toggleAlbumExpand(albumId) {
-    if (expandedAlbumId === albumId) {
-      setExpandedAlbumId(null);
-      return;
-    }
-
-    setExpandedAlbumId(albumId);
-
-    if (albumDetailsById[albumId]) return;
-
-    setAlbumDetailsById((prev) => ({
-      ...prev,
-      [albumId]: { loading: true, tracks: [], releaseDate: "" },
-    }));
-
-    spotifyApiFetch(`/albums/${albumId}`)
-      .then(async (res) => {
-        if (!res || !res.ok) {
-          setAlbumDetailsById((prev) => ({
-            ...prev,
-            [albumId]: { loading: false, tracks: [], releaseDate: "" },
-          }));
-          return;
-        }
-
-        const data = await res.json();
-        setAlbumDetailsById((prev) => ({
-          ...prev,
-          [albumId]: {
-            loading: false,
-            tracks: data.tracks?.items || [],
-            releaseDate: data.release_date || "",
-          },
-        }));
-      })
-      .catch(() => {
-        setAlbumDetailsById((prev) => ({
-          ...prev,
-          [albumId]: { loading: false, tracks: [], releaseDate: "" },
-        }));
-      });
   }
 
   async function rateAlbum(albumId) {
@@ -776,51 +594,6 @@ function App() {
       const rest = prev.filter((entry) => entry.album_id !== albumId);
       return [{ album_id: albumId, rating: parsedRating }, ...rest];
     });
-  }
-
-  function renderAddToListMenu(item) {
-    const menuKey = `${searchType}:${item.id}`;
-
-    return (
-      <div className="addListMenuWrap">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setAddToListOpenFor((prev) => (prev === menuKey ? null : menuKey));
-          }}
-        >
-          Add to List
-        </button>
-
-        {addToListOpenFor === menuKey ? (
-          <div className="addListDropdown" onClick={(e) => e.stopPropagation()}>
-            {userLists.length === 0 ? <p className="dropdownEmpty">No lists yet.</p> : null}
-            {userLists.map((list, index) => (
-              <button
-                key={list.id}
-                type="button"
-                onClick={() => {
-                  void addItemToList(list.id, item);
-                }}
-              >
-                {index + 1}. {list.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={async () => {
-                const newList = await createNewList();
-                if (!newList) return;
-                await addItemToList(newList.id, item);
-              }}
-            >
-              + New List
-            </button>
-          </div>
-        ) : null}
-      </div>
-    );
   }
 
   function renderAuthCard() {
@@ -879,263 +652,6 @@ function App() {
     );
   }
 
-  function renderSearchPage() {
-    if (!canUseApp) {
-      return <Navigate to="/" replace />;
-    }
-
-    return (
-      <div className="searchSection">
-        <h2 className="pageTitle">Search</h2>
-        <div className="searchCards">
-          <button
-            className={`searchCard ${searchType === "album" ? "active" : ""}`}
-            type="button"
-            onClick={() => {
-              setSearchType("album");
-              setResults([]);
-              setExpandedAlbumId(null);
-            }}
-          >
-            Album Search
-          </button>
-          <button
-            className={`searchCard ${searchType === "track" ? "active" : ""}`}
-            type="button"
-            onClick={() => {
-              setSearchType("track");
-              setResults([]);
-              setExpandedAlbumId(null);
-            }}
-          >
-            Song Search
-          </button>
-          <button
-            className={`searchCard ${searchType === "artist" ? "active" : ""}`}
-            type="button"
-            onClick={() => {
-              setSearchType("artist");
-              setResults([]);
-              setExpandedAlbumId(null);
-            }}
-          >
-            Artist Search
-          </button>
-        </div>
-
-        <form
-          className="searchBar"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void searchSpotify();
-          }}
-        >
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
-          />
-          <button type="submit" disabled={searchLoading}>
-            {searchLoading ? "Searching..." : "Search"}
-          </button>
-        </form>
-
-        {searchError ? <p className="authError">{searchError}</p> : null}
-
-        <div className="resultsList">
-          {results.map((item) => {
-            const isAlbum = searchType === "album";
-            const isExpanded = isAlbum && expandedAlbumId === item.id;
-            const details = albumDetailsById[item.id];
-            const releaseYear = details?.releaseDate
-              ? details.releaseDate.slice(0, 4)
-              : item.release_date?.slice(0, 4);
-
-            return (
-              <div
-                key={item.id}
-                className={`resultItem ${isExpanded ? "expanded" : ""}`}
-                onClick={() => {
-                  if (isAlbum) {
-                    toggleAlbumExpand(item.id);
-                  }
-                }}
-              >
-                <div className="resultMain">
-                  <img
-                    src={
-                      searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url
-                    }
-                    width="80"
-                  />
-                  <div className="resultInfo">
-                    <p>{item.name}</p>
-                    <p>
-                      {searchType === "artist"
-                        ? "Artist"
-                        : item.artists?.map((artist) => artist.name).join(", ")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="resultActions">{renderAddToListMenu(item)}</div>
-
-                {isExpanded ? (
-                  <div className="albumExpanded">
-                    <p>Released: {releaseYear || "Unknown"}</p>
-                    <div className="albumActions">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void rateAlbum(item.id);
-                        }}
-                      >
-                        {albumRatings[item.id] ? `Rated: ${albumRatings[item.id]}/10` : "Rate"}
-                      </button>
-                    </div>
-                    <p>Tracklist</p>
-                    {details?.loading ? (
-                      <p>Loading tracks...</p>
-                    ) : (
-                      <ol className="trackList">
-                        {(details?.tracks || []).map((track) => (
-                          <li key={track.id || track.name}>{track.name}</li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  function renderLibraryPage() {
-    if (!canUseApp) {
-      return <Navigate to="/" replace />;
-    }
-
-    const sortedLists = [...userLists].sort((a, b) => a.id - b.id);
-
-    return (
-      <div className="libraryPage">
-        <h2 className="pageTitle">Library / Profile</h2>
-
-        <div className="listPreviewGrid">
-          {sortedLists.map((list, index) => {
-            const previewItems = [...(list.items || [])]
-              .sort((a, b) => (a.position || 0) - (b.position || 0))
-              .slice(0, 4);
-
-            return (
-              <button
-                type="button"
-                key={list.id}
-                className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
-                onClick={() => (list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id))}
-              >
-                <div className="listPreviewHeader">
-                  <p className="listPreviewTitle">{list.name}</p>
-                </div>
-                <div className="listPreviewImages">
-                  {[0, 1, 2, 3].map((slot) => {
-                    const previewItem = previewItems[slot];
-                    return previewItem?.image_url ? (
-                      <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
-                    ) : (
-                      <div key={slot} className="previewPlaceholder" />
-                    );
-                  })}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {activeList ? (
-          <div className="myListsPanel">
-            <div className="selectedListHeader">
-              <h3>{activeList.name}</h3>
-              <div className="selectedListActions">
-                <button type="button" onClick={() => setActiveListId(null)}>
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void renameList(activeList.id);
-                  }}
-                >
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void deleteList(activeList.id);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-            {(activeList.items || []).length === 0 ? (
-              <p>No items in this list yet.</p>
-            ) : (
-              <div className="listItemsGrid">
-                {[...(activeList.items || [])]
-                  .sort((a, b) => (a.position || 0) - (b.position || 0))
-                  .map((item, index) => (
-                    <div
-                      key={item.id}
-                      className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
-                      draggable
-                      onDragStart={() => setDraggingItemId(item.id)}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                      }}
-                      onDrop={() => {
-                        void moveListItemByDrag(activeList.id, item.id);
-                      }}
-                      onDragEnd={() => setDraggingItemId(null)}
-                    >
-                      <span className="listItemPosition">{index + 1}</span>
-                      {item.image_url ? (
-                        <img src={item.image_url} alt={item.item_name} className="listItemImage" />
-                      ) : (
-                        <div className="listItemImage placeholder" />
-                      )}
-                      <p>{item.item_name}</p>
-                      <p>{item.item_subtitle}</p>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        <div className="myListsPanel">
-          <h3>My Reviews</h3>
-          {ratingEntries.length === 0 ? (
-            <p>No ratings yet.</p>
-          ) : (
-            <div className="myListItems">
-              {ratingEntries.map((entry) => (
-                <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
-                  <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
-                  <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
-                  <p>Rating: {entry.rating}/10</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
   function renderHomePage() {
     if (!authToken) {
       return (
@@ -1182,16 +698,10 @@ function App() {
           <Link className={location.pathname === "/" ? "navLink active" : "navLink"} to="/">
             Home
           </Link>
-          <Link
-            className={location.pathname === "/search" ? "navLink active" : "navLink"}
-            to="/search"
-          >
+          <Link className={location.pathname === "/search" ? "navLink active" : "navLink"} to="/search">
             Search
           </Link>
-          <Link
-            className={location.pathname === "/library" ? "navLink active" : "navLink"}
-            to="/library"
-          >
+          <Link className={location.pathname === "/library" ? "navLink active" : "navLink"} to="/library">
             Library/Profile
           </Link>
         </nav>
@@ -1217,8 +727,35 @@ function App() {
       <div className="body">
         <Routes>
           <Route path="/" element={renderHomePage()} />
-          <Route path="/search" element={renderSearchPage()} />
-          <Route path="/library" element={renderLibraryPage()} />
+          <Route
+            path="/search"
+            element={
+              <SearchPage
+                canUseApp={canUseApp}
+                spotifyApiFetch={spotifyApiFetch}
+                userLists={userLists}
+                createNewList={createNewList}
+                addItemToList={addItemToList}
+                rateAlbum={rateAlbum}
+                albumRatings={albumRatings}
+              />
+            }
+          />
+          <Route
+            path="/library"
+            element={
+              <LibraryPage
+                canUseApp={canUseApp}
+                userLists={userLists}
+                setUserLists={setUserLists}
+                renameList={renameList}
+                deleteList={deleteList}
+                reorderListItems={reorderListItems}
+                ratingEntries={ratingEntries}
+                albumMetaById={albumMetaById}
+              />
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Analytics />

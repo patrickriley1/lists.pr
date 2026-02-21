@@ -49,6 +49,12 @@
   color: var(--light);
 }
 
+.listsColumn {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+}
+
 .listsColumn .listPreviewGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }

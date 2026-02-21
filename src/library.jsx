@@ -120,7 +120,6 @@ function LibraryPage({
                     <div className="listItemImage placeholder" />
                   )}
                   <p>{item.item_name}</p>
-                  <p>{item.item_subtitle}</p>
                 </div>
               ))}
           </div>

@@ -51,6 +51,7 @@ function App() {
   const [searchError, setSearchError] = useState("");
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
+  const [albumMetaById, setAlbumMetaById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
   const [ratingEntries, setRatingEntries] = useState([]);
   const [savedAlbums, setSavedAlbums] = useState([]);
@@ -71,6 +72,7 @@ function App() {
     setAuthUser(null);
     setLinkedSpotifyUserId(null);
     setDefaultListId(null);
+    setAlbumMetaById({});
     setAlbumRatings({});
     setRatingEntries([]);
     setSavedAlbums([]);
@@ -332,6 +334,47 @@ function App() {
         console.error("Failed to hydrate user data", error);
       });
   }, [apiBaseURL, authToken, linkedSpotifyUserId]);
+
+  useEffect(() => {
+    if (!token || ratingEntries.length === 0) return;
+
+    const albumIdsToLoad = ratingEntries
+      .map((entry) => entry.album_id)
+      .filter((albumId) => albumId && !albumMetaById[albumId]);
+
+    if (albumIdsToLoad.length === 0) return;
+
+    Promise.all(
+      albumIdsToLoad.map(async (albumId) => {
+        const response = await fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        return {
+          albumId,
+          name: data.name || "Unknown Album",
+          artists: data.artists?.map((artist) => artist.name).join(", ") || "Unknown Artist",
+        };
+      })
+    ).then((albumRows) => {
+      setAlbumMetaById((prev) => {
+        const next = { ...prev };
+        albumRows.forEach((row) => {
+          if (!row) return;
+          next[row.albumId] = {
+            name: row.name,
+            artists: row.artists,
+          };
+        });
+        return next;
+      });
+    });
+  }, [token, ratingEntries, albumMetaById]);
 
   async function ensureDefaultList() {
     if (!defaultListId) {
@@ -739,7 +782,8 @@ function App() {
               <div className="myListItems">
                 {ratingEntries.map((entry) => (
                   <div key={`${entry.album_id}-${entry.rating}`} className="myListItem">
-                    <p>Album ID: {entry.album_id}</p>
+                    <p>{albumMetaById[entry.album_id]?.name || "Loading album..."}</p>
+                    <p>{albumMetaById[entry.album_id]?.artists || "Loading artist..."}</p>
                     <p>Rating: {entry.rating}/10</p>
                   </div>
                 ))}

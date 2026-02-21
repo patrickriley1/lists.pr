@@ -140,8 +140,14 @@ async function ensureCoreTables() {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       spotify_user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
+      spotify_refresh_token TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS spotify_refresh_token TEXT
   `);
 }
 
@@ -256,7 +262,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 });
 
 app.post("/api/users/upsert", requireAuth, async (req, res) => {
-  const { spotify_id, display_name, email } = req.body;
+  const { spotify_id, display_name, email, spotify_refresh_token } = req.body;
 
   if (!spotify_id) {
     return res.status(400).json({ error: "spotify_id is required" });
@@ -281,10 +287,11 @@ app.post("/api/users/upsert", requireAuth, async (req, res) => {
     await pool.query(
       `
       UPDATE app_users
-      SET spotify_user_id = $1
-      WHERE id = $2
+      SET spotify_user_id = $1,
+          spotify_refresh_token = COALESCE($2, spotify_refresh_token)
+      WHERE id = $3
       `,
-      [spotifyUser.id, req.appUserId]
+      [spotifyUser.id, spotify_refresh_token ?? null, req.appUserId]
     );
 
     return res.json({
@@ -298,6 +305,65 @@ app.post("/api/users/upsert", requireAuth, async (req, res) => {
 
     console.error("upsert user error", error);
     return res.status(500).json({ error: "Failed to upsert user" });
+  }
+});
+
+app.get("/api/spotify/token", requireAuth, async (req, res) => {
+  try {
+    const appUserResult = await pool.query(
+      `
+      SELECT spotify_user_id, spotify_refresh_token
+      FROM app_users
+      WHERE id = $1
+      `,
+      [req.appUserId]
+    );
+
+    const appUser = appUserResult.rows[0];
+    if (!appUser?.spotify_user_id) {
+      return res.status(400).json({ error: "Link Spotify account first" });
+    }
+
+    if (!appUser.spotify_refresh_token) {
+      return res.status(400).json({ error: "Spotify refresh token missing. Re-link Spotify." });
+    }
+
+    const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: process.env.SPOTIFY_CLIENT_ID || "52ef8393bb03454a8d33998beacb0927",
+        grant_type: "refresh_token",
+        refresh_token: appUser.spotify_refresh_token,
+      }),
+    });
+
+    if (!refreshResponse.ok) {
+      return res.status(401).json({ error: "Failed to refresh Spotify session. Re-link Spotify." });
+    }
+
+    const tokenData = await refreshResponse.json();
+    if (!tokenData.access_token) {
+      return res.status(401).json({ error: "Invalid Spotify refresh response" });
+    }
+
+    if (tokenData.refresh_token) {
+      await pool.query(
+        `
+        UPDATE app_users
+        SET spotify_refresh_token = $1
+        WHERE id = $2
+        `,
+        [tokenData.refresh_token, req.appUserId]
+      );
+    }
+
+    return res.json({ access_token: tokenData.access_token });
+  } catch (error) {
+    console.error("spotify token error", error);
+    return res.status(500).json({ error: "Failed to get Spotify token" });
   }
 });
 

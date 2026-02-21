@@ -12,18 +12,6 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [token, setToken] = useState(() => localStorage.getItem("spotify_token") || "");
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem("spotify_user");
-    if (!savedUser) return "";
-
-    try {
-      return JSON.parse(savedUser);
-    } catch {
-      return "";
-    }
-  });
-
   const [authToken, setAuthToken] = useState(() => localStorage.getItem("app_auth_token") || "");
   const [authUser, setAuthUser] = useState(() => {
     const savedAuthUser = localStorage.getItem("app_auth_user");
@@ -60,7 +48,7 @@ function App() {
     return Number.isNaN(parsed) ? null : parsed;
   });
 
-  const canUseApp = Boolean(authToken && token && linkedSpotifyUserId);
+  const canUseApp = Boolean(authToken && linkedSpotifyUserId);
 
   function getAuthHeaders() {
     if (!authToken) return {};
@@ -76,19 +64,16 @@ function App() {
     setAlbumRatings({});
     setRatingEntries([]);
     setSavedAlbums([]);
+    setResults([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
     localStorage.removeItem("linked_spotify_user_id");
     localStorage.removeItem("default_list_id");
+    localStorage.removeItem("spotify_verifier");
   }
 
   function logout() {
     clearAuthState();
-    setToken("");
-    setUser("");
-    localStorage.removeItem("spotify_token");
-    localStorage.removeItem("spotify_user");
-    localStorage.removeItem("spotify_verifier");
     navigate("/");
   }
 
@@ -167,32 +152,37 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
-    if (!code) return;
+  async function getSpotifyAccessToken() {
+    if (!authToken) return null;
 
-    const verifier = localStorage.getItem("spotify_verifier");
-
-    fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        client_id: clientID,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectURI,
-        code_verifier: verifier,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        localStorage.setItem("spotify_token", data.access_token);
-        setToken(data.access_token);
-        window.history.replaceState({}, document.title, "/");
+    try {
+      const response = await fetch(`${apiBaseURL}/api/spotify/token`, {
+        headers: {
+          ...getAuthHeaders(),
+        },
       });
-  }, []);
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data.access_token || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function spotifyApiFetch(path) {
+    const accessToken = await getSpotifyAccessToken();
+    if (!accessToken) return null;
+
+    return fetch(`https://api.spotify.com/v1${path}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  }
 
   useEffect(() => {
     if (!authToken) return;
@@ -225,56 +215,80 @@ function App() {
   }, [apiBaseURL, authToken]);
 
   useEffect(() => {
-    if (!token) return;
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (!code || !authToken) return;
 
-    fetch("https://api.spotify.com/v1/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        localStorage.setItem("spotify_user", JSON.stringify(data));
-        setUser(data);
-      });
-  }, [token]);
+    const verifier = localStorage.getItem("spotify_verifier");
+    if (!verifier) return;
 
-  useEffect(() => {
-    if (!authToken || !user?.id) return;
-
-    fetch(`${apiBaseURL}/api/users/upsert`, {
+    fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
-        spotify_id: user.id,
-        display_name: user.display_name,
-        email: user.email,
+      body: new URLSearchParams({
+        client_id: clientID,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: redirectURI,
+        code_verifier: verifier,
       }),
     })
-      .then((res) => {
-        if (!res.ok) {
+      .then((res) => res.json())
+      .then(async (tokenData) => {
+        if (!tokenData.access_token || !tokenData.refresh_token) {
+          throw new Error("Spotify link failed");
+        }
+
+        const meResponse = await fetch("https://api.spotify.com/v1/me", {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+          },
+        });
+
+        if (!meResponse.ok) {
+          throw new Error("Failed to load Spotify profile");
+        }
+
+        const spotifyProfile = await meResponse.json();
+
+        const linkResponse = await fetch(`${apiBaseURL}/api/users/upsert`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({
+            spotify_id: spotifyProfile.id,
+            display_name: spotifyProfile.display_name,
+            email: spotifyProfile.email,
+            spotify_refresh_token: tokenData.refresh_token,
+          }),
+        });
+
+        if (!linkResponse.ok) {
           throw new Error("Failed to link Spotify account");
         }
-        return res.json();
-      })
-      .then((data) => {
-        const spotifyUserId = data.spotify_user_id;
+
+        const linkedData = await linkResponse.json();
+        const spotifyUserId = linkedData.spotify_user_id;
+
         setLinkedSpotifyUserId(spotifyUserId);
         localStorage.setItem("linked_spotify_user_id", String(spotifyUserId));
 
         setAuthUser((prev) => {
-          const nextUser = { ...(prev || {}), spotify_user_id: spotifyUserId };
-          localStorage.setItem("app_auth_user", JSON.stringify(nextUser));
-          return nextUser;
+          const next = { ...(prev || {}), spotify_user_id: spotifyUserId };
+          localStorage.setItem("app_auth_user", JSON.stringify(next));
+          return next;
         });
+
+        window.history.replaceState({}, document.title, "/");
       })
       .catch((error) => {
         console.error(error);
+        setSearchError("Could not link Spotify. Please try again.");
       });
-  }, [apiBaseURL, authToken, user]);
+  }, [authToken, apiBaseURL]);
 
   useEffect(() => {
     if (defaultListId) {
@@ -336,45 +350,56 @@ function App() {
   }, [apiBaseURL, authToken, linkedSpotifyUserId]);
 
   useEffect(() => {
-    if (!token || ratingEntries.length === 0) return;
+    if (!canUseApp || ratingEntries.length === 0) return;
 
-    const albumIdsToLoad = ratingEntries
-      .map((entry) => entry.album_id)
-      .filter((albumId) => albumId && !albumMetaById[albumId]);
+    const albumIdsToLoad = [...new Set(ratingEntries.map((entry) => entry.album_id))].filter(
+      (albumId) => albumId && !albumMetaById[albumId]
+    );
 
     if (albumIdsToLoad.length === 0) return;
 
-    Promise.all(
-      albumIdsToLoad.map(async (albumId) => {
-        const response = await fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    const batchIds = albumIdsToLoad.slice(0, 20).join(",");
 
-        if (!response.ok) return null;
+    spotifyApiFetch(`/albums?ids=${encodeURIComponent(batchIds)}`)
+      .then(async (response) => {
+        if (!response || !response.ok) {
+          setAlbumMetaById((prev) => {
+            const next = { ...prev };
+            albumIdsToLoad.forEach((id) => {
+              if (!next[id]) {
+                next[id] = { name: "Spotify reconnect required", artists: "Unknown Artist" };
+              }
+            });
+            return next;
+          });
+          return;
+        }
 
         const data = await response.json();
-        return {
-          albumId,
-          name: data.name || "Unknown Album",
-          artists: data.artists?.map((artist) => artist.name).join(", ") || "Unknown Artist",
-        };
-      })
-    ).then((albumRows) => {
-      setAlbumMetaById((prev) => {
-        const next = { ...prev };
-        albumRows.forEach((row) => {
-          if (!row) return;
-          next[row.albumId] = {
-            name: row.name,
-            artists: row.artists,
-          };
+        setAlbumMetaById((prev) => {
+          const next = { ...prev };
+          (data.albums || []).forEach((album) => {
+            if (!album?.id) return;
+            next[album.id] = {
+              name: album.name || "Unknown Album",
+              artists: album.artists?.map((artist) => artist.name).join(", ") || "Unknown Artist",
+            };
+          });
+          return next;
         });
-        return next;
+      })
+      .catch(() => {
+        setAlbumMetaById((prev) => {
+          const next = { ...prev };
+          albumIdsToLoad.forEach((id) => {
+            if (!next[id]) {
+              next[id] = { name: "Spotify reconnect required", artists: "Unknown Artist" };
+            }
+          });
+          return next;
+        });
       });
-    });
-  }, [token, ratingEntries, albumMetaById]);
+  }, [canUseApp, ratingEntries, albumMetaById]);
 
   async function ensureDefaultList() {
     if (!defaultListId) {
@@ -402,31 +427,22 @@ function App() {
   }
 
   async function searchSpotify() {
-    if (!search.trim() || !token) return;
+    if (!search.trim() || !canUseApp) return;
 
     setSearchLoading(true);
     setSearchError("");
 
     try {
-      const response = await fetch(
-        `https://api.spotify.com/v1/search?q=${encodeURIComponent(search)}&type=${searchType}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const response = await spotifyApiFetch(
+        `/search?q=${encodeURIComponent(search)}&type=${searchType}`
       );
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          setSearchError("Spotify session expired. Please link Spotify again.");
-          setToken("");
-          setUser("");
-          localStorage.removeItem("spotify_token");
-          localStorage.removeItem("spotify_user");
-          return;
-        }
+      if (!response) {
+        setSearchError("Spotify session unavailable. Re-link Spotify from Home.");
+        return;
+      }
 
+      if (!response.ok) {
         setSearchError("Search failed. Please try again.");
         return;
       }
@@ -469,13 +485,17 @@ function App() {
       [albumId]: { loading: true, tracks: [], releaseDate: "" },
     }));
 
-    fetch(`https://api.spotify.com/v1/albums/${albumId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
+    spotifyApiFetch(`/albums/${albumId}`)
+      .then(async (res) => {
+        if (!res || !res.ok) {
+          setAlbumDetailsById((prev) => ({
+            ...prev,
+            [albumId]: { loading: false, tracks: [], releaseDate: "" },
+          }));
+          return;
+        }
+
+        const data = await res.json();
         setAlbumDetailsById((prev) => ({
           ...prev,
           [albumId]: {
@@ -484,11 +504,17 @@ function App() {
             releaseDate: data.release_date || "",
           },
         }));
+      })
+      .catch(() => {
+        setAlbumDetailsById((prev) => ({
+          ...prev,
+          [albumId]: { loading: false, tracks: [], releaseDate: "" },
+        }));
       });
   }
 
   async function rateAlbum(albumId) {
-    if (!authToken || !linkedSpotifyUserId) return;
+    if (!canUseApp) return;
 
     const currentRating = albumRatings[albumId] ?? "";
     const newRating = window.prompt("Rate this album from 1 to 10", currentRating);
@@ -524,7 +550,7 @@ function App() {
   }
 
   async function addAlbumToList(album) {
-    if (!authToken || !linkedSpotifyUserId) return;
+    if (!canUseApp) return;
     if (savedAlbums.some((savedAlbum) => savedAlbum.id === album.id)) return;
 
     const targetListId = await ensureDefaultList();
@@ -806,7 +832,7 @@ function App() {
       );
     }
 
-    if (!token || !linkedSpotifyUserId) {
+    if (!linkedSpotifyUserId) {
       return (
         <div className="pageSection">
           <h2 className="pageTitle">Home</h2>
@@ -869,8 +895,6 @@ function App() {
               <button onClick={logout}>Logout</button>
             </div>
           </div>
-        ) : token && user?.display_name ? (
-          <p className="usernameTopRight">{user.display_name}</p>
         ) : null}
       </div>
 

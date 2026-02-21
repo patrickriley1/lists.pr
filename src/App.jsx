@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/next";
+import { Analytics } from "@vercel/analytics/react";
 import "./App.css";
 
 function App() {
@@ -803,6 +803,7 @@ function App() {
           <Route path="/library" element={renderLibraryPage()} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <Analytics />
       </div>
     </div>
   );

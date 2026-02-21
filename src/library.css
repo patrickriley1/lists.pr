@@ -85,6 +85,81 @@
   gap: 10px;
 }
 
+.listItemsEditList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editListRow {
+  position: relative;
+  min-height: 82px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.editListRow.dragging {
+  opacity: 0.5;
+}
+
+.editListRow .listItemPosition {
+  position: static;
+  flex-shrink: 0;
+}
+
+.editListItemName {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  color: var(--light);
+}
+
+.editListRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editListThumb {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.editListThumb.placeholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
+.dragHandleButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #2f2f2f;
+  background: #151515;
+  color: var(--light);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dragHandleButton:active {
+  cursor: grabbing;
+}
+
 .listItemCard {
   display: flex;
   flex-direction: column;
@@ -99,29 +174,6 @@
 
 .listItemCard.dragging {
   opacity: 0.5;
-}
-
-.removeListItemButton {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 3;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  border: 1px solid #8f1d1d;
-  background: #cc2a2a;
-  color: #fff;
-  padding: 0;
-  line-height: 1;
-  font-size: 0.95rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.removeListItemButton:hover {
-  background: #e23838;
 }
 
 .listItemPosition {
@@ -148,6 +200,8 @@
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid #2a2a2a;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .listItemImage.placeholder {
@@ -215,6 +269,8 @@
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 6px;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .previewPlaceholder {
@@ -231,7 +287,7 @@
   }
 
   .listPreviewGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .listItemsGrid {

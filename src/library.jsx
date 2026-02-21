@@ -9,7 +9,6 @@ function LibraryPage({
   renameList,
   deleteList,
   reorderListItems,
-  removeItemFromList,
   ratingEntries,
   albumMetaById,
 }) {
@@ -26,6 +25,15 @@ function LibraryPage({
     setIsEditing(false);
     setDraggingItemId(null);
   }, [activeListId]);
+
+  async function applyReorderedItems(listId, reorderedItems) {
+    setUserLists((prev) => prev.map((entry) => (entry.id === listId ? { ...entry, items: reorderedItems } : entry)));
+
+    await reorderListItems(
+      listId,
+      reorderedItems.map((entry) => entry.id)
+    );
+  }
 
   async function moveListItemByDrag(listId, targetItemId) {
     if (!draggingItemId || draggingItemId === targetItemId) return;
@@ -47,14 +55,7 @@ function LibraryPage({
       position: positionIndex + 1,
     }));
 
-    setUserLists((prev) =>
-      prev.map((entry) => (entry.id === listId ? { ...entry, items: rePositioned } : entry))
-    );
-
-    void reorderListItems(
-      listId,
-      rePositioned.map((entry) => entry.id)
-    );
+    void applyReorderedItems(listId, rePositioned);
 
     setDraggingItemId(null);
   }
@@ -108,56 +109,66 @@ function LibraryPage({
         {(activeList.items || []).length === 0 ? (
           <p>No items in this list yet.</p>
         ) : (
-          <div className="listItemsGrid">
+          <div className={isEditing ? "listItemsEditList" : "listItemsGrid"}>
             {[...(activeList.items || [])]
               .sort((a, b) => (a.position || 0) - (b.position || 0))
               .map((item, index) => (
-                <div
-                  key={item.id}
-                  className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""} ${
-                    isEditing ? "" : "readonly"
-                  }`}
-                  draggable={isEditing}
-                  onDragStart={(event) => {
-                    if (!isEditing) {
+                isEditing ? (
+                  <div
+                    key={item.id}
+                    className={`editListRow ${draggingItemId === item.id ? "dragging" : ""}`}
+                    onDragOver={(event) => {
                       event.preventDefault();
-                      return;
-                    }
-                    setDraggingItemId(item.id);
-                  }}
-                  onDragOver={(event) => {
-                    if (!isEditing) return;
-                    event.preventDefault();
-                  }}
-                  onDrop={() => {
-                    if (!isEditing) return;
-                    void moveListItemByDrag(activeList.id, item.id);
-                  }}
-                  onDragEnd={() => setDraggingItemId(null)}
-                >
-                  {isEditing ? (
-                    <button
-                      type="button"
-                      className="removeListItemButton"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        void removeItemFromList(activeList.id, item.id);
-                      }}
-                      aria-label={`Remove ${item.item_name} from ${activeList.name}`}
-                      title="Remove from list"
-                    >
-                      -
-                    </button>
-                  ) : null}
-                  <span className="listItemPosition">{index + 1}</span>
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.item_name} className="listItemImage" />
-                  ) : (
-                    <div className="listItemImage placeholder" />
-                  )}
-                  <p>{item.item_name}</p>
-                </div>
+                    }}
+                    onDrop={() => {
+                      void moveListItemByDrag(activeList.id, item.id);
+                    }}
+                  >
+                    <span className="listItemPosition">{index + 1}</span>
+                    <p className="editListItemName">{item.item_name}</p>
+                    <div className="editListRight">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.item_name}
+                          className="editListThumb"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="editListThumb placeholder" />
+                      )}
+                      <button
+                        type="button"
+                        className="dragHandleButton"
+                        draggable
+                        onDragStart={(event) => {
+                          event.stopPropagation();
+                          setDraggingItemId(item.id);
+                        }}
+                        onDragEnd={() => setDraggingItemId(null)}
+                        aria-label={`Reorder ${item.item_name}`}
+                        title="Drag to reorder"
+                      >
+                        ≡
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={item.id} className="myListItem listItemCard readonly">
+                    <span className="listItemPosition">{index + 1}</span>
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.item_name}
+                        className="listItemImage"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="listItemImage placeholder" />
+                    )}
+                    <p>{item.item_name}</p>
+                  </div>
+                )
               ))}
           </div>
         )}
@@ -201,7 +212,12 @@ function LibraryPage({
                             {[0, 1, 2, 3].map((slot) => {
                               const previewItem = previewItems[slot];
                               return previewItem?.image_url ? (
-                                <img key={slot} src={previewItem.image_url} alt={previewItem.item_name} />
+                                <img
+                                  key={slot}
+                                  src={previewItem.image_url}
+                                  alt={previewItem.item_name}
+                                  draggable={false}
+                                />
                               ) : (
                                 <div key={slot} className="previewPlaceholder" />
                               );

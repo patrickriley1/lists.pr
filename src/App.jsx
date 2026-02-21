@@ -702,7 +702,7 @@ function App() {
             Search
           </Link>
           <Link className={location.pathname === "/library" ? "navLink active" : "navLink"} to="/library">
-            Library/Profile
+            Library
           </Link>
         </nav>
 

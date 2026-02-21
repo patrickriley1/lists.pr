@@ -31,6 +31,7 @@ function App() {
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [authError, setAuthError] = useState("");
+  const [spotifyLinkError, setSpotifyLinkError] = useState("");
 
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
@@ -99,6 +100,7 @@ function App() {
   }
 
   async function loginSpotify() {
+    setSpotifyLinkError("");
     const verifier = generateCodeVerifier();
     localStorage.setItem("spotify_verifier", verifier);
 
@@ -224,7 +226,10 @@ function App() {
     if (!code || !authToken) return;
 
     const verifier = localStorage.getItem("spotify_verifier");
-    if (!verifier) return;
+    if (!verifier) {
+      setSpotifyLinkError("Missing Spotify verifier. Please click Link Spotify Account again.");
+      return;
+    }
 
     fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
@@ -241,6 +246,10 @@ function App() {
     })
       .then((res) => res.json())
       .then(async (tokenData) => {
+        if (tokenData.error) {
+          throw new Error(tokenData.error_description || tokenData.error);
+        }
+
         if (!tokenData.access_token) {
           throw new Error("Spotify link failed");
         }
@@ -272,7 +281,8 @@ function App() {
         });
 
         if (!linkResponse.ok) {
-          throw new Error("Failed to link Spotify account");
+          const errorData = await linkResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to link Spotify account");
         }
 
         const linkedData = await linkResponse.json();
@@ -291,7 +301,7 @@ function App() {
       })
       .catch((error) => {
         console.error(error);
-        setSearchError("Could not link Spotify. Please try again.");
+        setSpotifyLinkError(`Could not link Spotify: ${error.message}`);
       });
   }, [authToken, apiBaseURL, location.pathname]);
 
@@ -752,6 +762,7 @@ function App() {
       <div className="authCard">
         <h2>Link Spotify</h2>
         <p>Login succeeded. Link your Spotify account to continue.</p>
+        {spotifyLinkError ? <p className="authError">{spotifyLinkError}</p> : null}
         <div className="authActions">
           <button onClick={loginSpotify}>Link Spotify Account</button>
           <button onClick={logout}>Logout</button>

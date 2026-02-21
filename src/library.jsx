@@ -9,6 +9,7 @@ function LibraryPage({
   renameList,
   deleteList,
   reorderListItems,
+  removeItemFromList,
   ratingEntries,
   albumMetaById,
 }) {
@@ -125,18 +126,18 @@ function LibraryPage({
                     }}
                   >
                     <span className="listItemPosition">{index + 1}</span>
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.item_name}
+                        className="editListThumb"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="editListThumb placeholder" />
+                    )}
                     <p className="editListItemName">{item.item_name}</p>
                     <div className="editListRight">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.item_name}
-                          className="editListThumb"
-                          draggable={false}
-                        />
-                      ) : (
-                        <div className="editListThumb placeholder" />
-                      )}
                       <button
                         type="button"
                         className="dragHandleButton"
@@ -150,6 +151,19 @@ function LibraryPage({
                         title="Drag to reorder"
                       >
                         ≡
+                      </button>
+                      <button
+                        type="button"
+                        className="removeRowButton"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void removeItemFromList(activeList.id, item.id);
+                        }}
+                        aria-label={`Remove ${item.item_name} from ${activeList.name}`}
+                        title="Remove from list"
+                      >
+                        -
                       </button>
                     </div>
                   </div>

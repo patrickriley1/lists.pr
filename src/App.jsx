@@ -560,6 +560,29 @@ function App() {
     );
   }
 
+  async function removeItemFromList(listId, listItemId) {
+    const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items/${listItemId}`, {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+
+    setUserLists((prev) =>
+      prev
+        .map((list) =>
+          list.id === listId ? { ...list, items: data.items || [], updated_at: new Date().toISOString() } : list
+        )
+        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+    );
+  }
+
   async function rateAlbum(albumId) {
     if (!canUseApp) return;
 
@@ -751,6 +774,7 @@ function App() {
                 renameList={renameList}
                 deleteList={deleteList}
                 reorderListItems={reorderListItems}
+                removeItemFromList={removeItemFromList}
                 ratingEntries={ratingEntries}
                 albumMetaById={albumMetaById}
               />

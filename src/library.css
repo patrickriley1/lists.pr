@@ -97,9 +97,9 @@
   border: 1px solid #2a2a2a;
   border-radius: 10px;
   padding: 10px 12px;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
@@ -120,15 +120,14 @@
 }
 
 .editListRight {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .editListThumb {
-  width: 58px;
-  height: 58px;
+  width: 66px;
+  height: 66px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid #2a2a2a;
@@ -158,6 +157,25 @@
 
 .dragHandleButton:active {
   cursor: grabbing;
+}
+
+.removeRowButton {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #8f1d1d;
+  background: #cc2a2a;
+  color: #fff;
+  padding: 0;
+  line-height: 1;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeRowButton:hover {
+  background: #e23838;
 }
 
 .listItemCard {

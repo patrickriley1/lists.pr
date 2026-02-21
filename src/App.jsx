@@ -47,6 +47,8 @@ function App() {
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [albumRatings, setAlbumRatings] = useState({});
@@ -356,31 +358,57 @@ function App() {
     return defaultListId;
   }
 
-  function searchSpotify() {
+  async function searchSpotify() {
     if (!search.trim() || !token) return;
 
-    fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(search)}&type=${searchType}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (searchType === "album") {
-          setResults(data.albums?.items || []);
-          setExpandedAlbumId(null);
+    setSearchLoading(true);
+    setSearchError("");
+
+    try {
+      const response = await fetch(
+        `https://api.spotify.com/v1/search?q=${encodeURIComponent(search)}&type=${searchType}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setSearchError("Spotify session expired. Please link Spotify again.");
+          setToken("");
+          setUser("");
+          localStorage.removeItem("spotify_token");
+          localStorage.removeItem("spotify_user");
           return;
         }
 
-        if (searchType === "track") {
-          setResults(data.tracks?.items || []);
-          setExpandedAlbumId(null);
-          return;
-        }
+        setSearchError("Search failed. Please try again.");
+        return;
+      }
 
-        setResults(data.artists?.items || []);
+      const data = await response.json();
+
+      if (searchType === "album") {
+        setResults(data.albums?.items || []);
         setExpandedAlbumId(null);
-      });
+        return;
+      }
+
+      if (searchType === "track") {
+        setResults(data.tracks?.items || []);
+        setExpandedAlbumId(null);
+        return;
+      }
+
+      setResults(data.artists?.items || []);
+      setExpandedAlbumId(null);
+    } catch {
+      setSearchError("Search failed. Check your connection and try again.");
+    } finally {
+      setSearchLoading(false);
+    }
   }
 
   function toggleAlbumExpand(albumId) {
@@ -550,6 +578,7 @@ function App() {
         <div className="searchCards">
           <button
             className={`searchCard ${searchType === "album" ? "active" : ""}`}
+            type="button"
             onClick={() => {
               setSearchType("album");
               setResults([]);
@@ -560,6 +589,7 @@ function App() {
           </button>
           <button
             className={`searchCard ${searchType === "track" ? "active" : ""}`}
+            type="button"
             onClick={() => {
               setSearchType("track");
               setResults([]);
@@ -570,6 +600,7 @@ function App() {
           </button>
           <button
             className={`searchCard ${searchType === "artist" ? "active" : ""}`}
+            type="button"
             onClick={() => {
               setSearchType("artist");
               setResults([]);
@@ -579,19 +610,23 @@ function App() {
             Artist Search
           </button>
         </div>
-        <div className="searchBar">
+        <form
+          className="searchBar"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void searchSpotify();
+          }}
+        >
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                searchSpotify();
-              }
-            }}
             placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
           />
-          <button onClick={searchSpotify}>Search</button>
-        </div>
+          <button type="submit" disabled={searchLoading}>
+            {searchLoading ? "Searching..." : "Search"}
+          </button>
+        </form>
+        {searchError ? <p className="authError">{searchError}</p> : null}
         <div className="resultsList">
           {results.map((item) => {
             const isAlbum = searchType === "album";

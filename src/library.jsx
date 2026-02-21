@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import "./library.css";
 
@@ -15,11 +15,17 @@ function LibraryPage({
 }) {
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const activeList = useMemo(
     () => userLists.find((list) => list.id === activeListId) || null,
     [activeListId, userLists]
   );
+
+  useEffect(() => {
+    setIsEditing(false);
+    setDraggingItemId(null);
+  }, [activeListId]);
 
   async function moveListItemByDrag(listId, targetItemId) {
     if (!draggingItemId || draggingItemId === targetItemId) return;
@@ -73,9 +79,6 @@ function LibraryPage({
         <div className="selectedListHeader">
           <h3>{activeList.name}</h3>
           <div className="selectedListActions">
-            <button type="button" onClick={() => setActiveListId(null)}>
-              Close
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -83,6 +86,14 @@ function LibraryPage({
               }}
             >
               Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditing((prev) => !prev);
+              }}
+            >
+              {isEditing ? "Done" : "Edit"}
             </button>
             <button
               type="button"
@@ -103,30 +114,42 @@ function LibraryPage({
               .map((item, index) => (
                 <div
                   key={item.id}
-                  className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""}`}
-                  draggable
-                  onDragStart={() => setDraggingItemId(item.id)}
+                  className={`myListItem listItemCard ${draggingItemId === item.id ? "dragging" : ""} ${
+                    isEditing ? "" : "readonly"
+                  }`}
+                  draggable={isEditing}
+                  onDragStart={(event) => {
+                    if (!isEditing) {
+                      event.preventDefault();
+                      return;
+                    }
+                    setDraggingItemId(item.id);
+                  }}
                   onDragOver={(event) => {
+                    if (!isEditing) return;
                     event.preventDefault();
                   }}
                   onDrop={() => {
+                    if (!isEditing) return;
                     void moveListItemByDrag(activeList.id, item.id);
                   }}
                   onDragEnd={() => setDraggingItemId(null)}
                 >
-                  <button
-                    type="button"
-                    className="removeListItemButton"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      void removeItemFromList(activeList.id, item.id);
-                    }}
-                    aria-label={`Remove ${item.item_name} from ${activeList.name}`}
-                    title="Remove from list"
-                  >
-                    -
-                  </button>
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      className="removeListItemButton"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void removeItemFromList(activeList.id, item.id);
+                      }}
+                      aria-label={`Remove ${item.item_name} from ${activeList.name}`}
+                      title="Remove from list"
+                    >
+                      -
+                    </button>
+                  ) : null}
                   <span className="listItemPosition">{index + 1}</span>
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.item_name} className="listItemImage" />

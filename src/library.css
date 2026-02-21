@@ -93,6 +93,10 @@
   position: relative;
 }
 
+.listItemCard.readonly {
+  cursor: default;
+}
+
 .listItemCard.dragging {
   opacity: 0.5;
 }

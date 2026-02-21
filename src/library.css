@@ -25,7 +25,7 @@
 
 .libraryPage {
   width: 100%;
-  max-width: 900px;
+  max-width: 1200px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -140,7 +140,7 @@
   border-radius: 12px;
   background: transparent;
   color: var(--light);
-  padding: 10px;
+  padding: 15px;
   text-align: left;
 }
 

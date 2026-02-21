@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
+import "./library.css";
 
 function LibraryPage({
   canUseApp,

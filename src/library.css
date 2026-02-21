@@ -1,0 +1,207 @@
+.myListsPanel {
+  width: 100%;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.myListsPanel h3 {
+  margin: 0 0 10px 0;
+  color: var(--light);
+}
+
+.myListItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.myListItem {
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.libraryPage {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.libraryGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr);
+  align-items: start;
+  gap: 36px;
+}
+
+.libraryColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.libraryColumn h3 {
+  margin: 0;
+  color: var(--light);
+}
+
+.listsColumn .listPreviewGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reviewsColumn {
+  margin-left: 12px;
+}
+
+.listPreviewRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.listPreviewRowBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.myListItem p {
+  margin: 2px 0;
+}
+
+.listItemsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.listItemCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: grab;
+  position: relative;
+}
+
+.listItemCard.dragging {
+  opacity: 0.5;
+}
+
+.listItemPosition {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #2f2f2f;
+  color: var(--light);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.listItemImage {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.listItemImage.placeholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
+.listPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+
+.listPreviewCard {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--light);
+  padding: 10px;
+  text-align: left;
+}
+
+.listPreviewCard.active {
+  border-color: var(--primary);
+}
+
+.listPreviewTitle {
+  margin: 0;
+}
+
+.listPreviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.selectedListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.selectedListHeader h3 {
+  margin: 0;
+}
+
+.selectedListActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.listPreviewImages {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.listPreviewImages img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.previewPlaceholder {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: #191919;
+  border: 1px dashed #2f2f2f;
+}
+
+@media (max-width: 768px) {
+  .libraryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .listPreviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .listItemsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

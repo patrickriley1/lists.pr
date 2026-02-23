@@ -1281,6 +1281,41 @@ app.get("/api/ratings/average", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/charts", requireAuth, async (req, res) => {
+  const itemType = String(req.query.item_type || "").trim();
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));
+
+  if (!["album", "track", "artist"].includes(itemType)) {
+    return res.status(400).json({ error: "item_type must be album, track, or artist" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        r.item_type,
+        r.item_id,
+        MAX(r.item_name) AS item_name,
+        MAX(r.item_subtitle) AS item_subtitle,
+        MAX(r.image_url) AS image_url,
+        ROUND(AVG(r.rating)::numeric, 2) AS average_rating,
+        COUNT(*)::INT AS rating_count
+      FROM ratings r
+      WHERE r.item_type = $1 AND r.item_id IS NOT NULL
+      GROUP BY r.item_type, r.item_id
+      ORDER BY average_rating DESC, rating_count DESC, MAX(r.updated_at) DESC
+      LIMIT $2
+      `,
+      [itemType, limit]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("get charts error", error);
+    return res.status(500).json({ error: "Failed to fetch charts" });
+  }
+});
+
 app.get("/api/lists", requireAuth, async (req, res) => {
   try {
     const listsResult = await pool.query(

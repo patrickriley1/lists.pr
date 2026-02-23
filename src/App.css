@@ -261,8 +261,8 @@
 }
 
 .feedLikeButton.active {
-  border-color: #f1728f;
-  background: rgba(241, 114, 143, 0.15);
+  border-color: var(--primary);
+  background: rgba(114, 201, 241, 0.15);
 }
 
 .feedLikeIcon {

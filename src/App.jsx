@@ -6,6 +6,7 @@ import SearchPage from "./search";
 import LibraryPage from "./library";
 import AlbumPage from "./album";
 import UserPage from "./user";
+import ChartsPage from "./charts";
 import "./App.css";
 
 function App() {
@@ -554,6 +555,17 @@ function App() {
     return response.json();
   }
 
+  async function getCharts(itemType, limit = 50) {
+    const response = await fetch(
+      `${apiBaseURL}/api/charts?item_type=${encodeURIComponent(itemType)}&limit=${encodeURIComponent(limit)}`,
+      {
+        headers: withAuthHeaders(),
+      }
+    );
+    if (!response.ok) return [];
+    return response.json();
+  }
+
   async function searchUsers(query) {
     const response = await fetch(`${apiBaseURL}/api/users/search?q=${encodeURIComponent(query)}`, {
       headers: withAuthHeaders(),
@@ -660,7 +672,6 @@ function App() {
     return (
       <div className="pageSection">
         <h2 className="pageTitle">Home</h2>
-        <p className="pageIntro">Recent reviews from everyone.</p>
         <div className="feedList">
           {feedEntries.length === 0 ? <p>No reviews yet.</p> : null}
           {feedEntries.map((entry) => (
@@ -717,6 +728,9 @@ function App() {
           <Link className={location.pathname === "/library" ? "navLink active" : "navLink"} to="/library">
             Library
           </Link>
+          <Link className={location.pathname === "/charts" ? "navLink active" : "navLink"} to="/charts">
+            Charts
+          </Link>
         </nav>
 
         {authUser?.username ? (
@@ -770,6 +784,15 @@ function App() {
                 reviewEntries={reviewEntries}
                 listenLaterItems={listenLaterItems}
                 removeListenLaterItem={removeListenLaterItem}
+              />
+            }
+          />
+          <Route
+            path="/charts"
+            element={
+              <ChartsPage
+                canUseApp={canUseApp}
+                getCharts={getCharts}
               />
             }
           />

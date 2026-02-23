@@ -12,12 +12,14 @@ function AlbumPage({
   listenLaterItems,
   saveReview,
   reviewByKey,
+  getAverageRating,
 }) {
   const { albumId } = useParams();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
+  const [albumAverage, setAlbumAverage] = useState({ average_rating: null, rating_count: 0 });
 
   useEffect(() => {
     if (!canUseApp || !albumId) return;
@@ -25,13 +27,20 @@ function AlbumPage({
     setLoading(true);
     setError("");
 
-    spotifyApiFetch(`/albums/${albumId}`)
-      .then(async (response) => {
+    Promise.all([
+      spotifyApiFetch(`/albums/${albumId}`),
+      getAverageRating("album", albumId).catch(() => null),
+    ])
+      .then(async ([response, averageData]) => {
         if (!response || !response.ok) {
           throw new Error("Album request failed");
         }
         const data = await response.json();
         setAlbum(data);
+        setAlbumAverage({
+          average_rating: averageData?.average_rating ?? null,
+          rating_count: Number(averageData?.rating_count || 0),
+        });
       })
       .catch(() => {
         setError("Could not load album details. Please try again.");
@@ -39,7 +48,7 @@ function AlbumPage({
       .finally(() => {
         setLoading(false);
       });
-  }, [albumId, canUseApp, spotifyApiFetch]);
+  }, [albumId, canUseApp, getAverageRating, spotifyApiFetch]);
 
   if (!canUseApp) {
     return <Navigate to="/" replace />;
@@ -164,6 +173,11 @@ function AlbumPage({
               </div>
               <p className="albumDetailArtist">{artists}</p>
               <p className="albumDetailYear">{year}</p>
+              <p className="albumDetailAverage">
+                {albumAverage.rating_count > 0
+                  ? `Average rating: ${albumAverage.average_rating}/10 • ${albumAverage.rating_count} users`
+                  : "Average rating: No ratings yet"}
+              </p>
             </div>
           </div>
 

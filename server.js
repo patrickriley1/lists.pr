@@ -391,6 +391,11 @@ async function ensureCoreTables() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS ratings_item_lookup_idx
+    ON ratings (item_type, item_id)
+  `);
+
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS list_items_list_position_idx
     ON list_items (list_id, position ASC, added_at ASC)
   `);
@@ -992,6 +997,39 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
     return res.status(500).json({ error: "Failed to reorder list items" });
   } finally {
     client.release();
+  }
+});
+
+app.get("/api/ratings/average", requireAuth, async (req, res) => {
+  const itemType = String(req.query.item_type || "").trim();
+  const itemId = String(req.query.item_id || "").trim();
+
+  if (!["album", "track", "artist"].includes(itemType) || !itemId) {
+    return res.status(400).json({ error: "item_type and item_id are required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        COUNT(*)::INT AS rating_count,
+        ROUND(AVG(rating)::numeric, 2) AS average_rating
+      FROM ratings
+      WHERE item_type = $1 AND item_id = $2
+      `,
+      [itemType, itemId]
+    );
+
+    const row = result.rows[0] || { rating_count: 0, average_rating: null };
+    return res.json({
+      item_type: itemType,
+      item_id: itemId,
+      rating_count: Number(row.rating_count || 0),
+      average_rating: row.average_rating === null ? null : Number(row.average_rating),
+    });
+  } catch (error) {
+    console.error("get average rating error", error);
+    return res.status(500).json({ error: "Failed to fetch average rating" });
   }
 });
 

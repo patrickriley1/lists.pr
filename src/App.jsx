@@ -453,6 +453,18 @@ function App() {
     setListenLaterItems((prev) => prev.filter((entry) => entry.id !== itemRowId));
   }
 
+  async function getAverageRating(itemType, itemId) {
+    const response = await fetch(
+      `${apiBaseURL}/api/ratings/average?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}`,
+      {
+        headers: withAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) return null;
+    return response.json();
+  }
+
   function renderAuthCard() {
     return (
       <form className="authCard" onSubmit={submitAuth}>
@@ -585,6 +597,7 @@ function App() {
                 listenLaterItems={listenLaterItems}
                 saveReview={saveReview}
                 reviewByKey={reviewByKey}
+                getAverageRating={getAverageRating}
               />
             }
           />

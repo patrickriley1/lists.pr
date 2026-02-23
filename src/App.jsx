@@ -719,7 +719,7 @@ function App() {
                   <button
                     key={score}
                     type="button"
-                    className={`reviewDot ${reviewDraft.rating === score ? "active" : ""}`}
+                    className={`reviewDot ${reviewDraft.rating >= score ? "active" : ""}`}
                     onClick={() => {
                       setReviewDraft((prev) => ({ ...prev, rating: score }));
                       setReviewEditorError("");

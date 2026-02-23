@@ -121,6 +121,11 @@
 .removeListenLaterButton {
   align-self: center;
   white-space: nowrap;
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  text-decoration: none;
 }
 
 .reviewImage {

@@ -20,6 +20,12 @@ const pool = new Pool({
 
 const tokenSecret = process.env.TOKEN_SECRET || "dev-token-secret-change-me";
 const tokenLifetimeMs = 1000 * 60 * 60 * 24 * 7;
+const spotifyClientId = process.env.SPOTIFY_CLIENT_ID || "";
+const spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET || "";
+const spotifyTokenRefreshBufferMs = 30 * 1000;
+
+let spotifyAppToken = "";
+let spotifyAppTokenExpiresAt = 0;
 
 function base64UrlEncode(value) {
   const source = typeof value === "string" ? value : JSON.stringify(value);
@@ -120,7 +126,7 @@ function requireAuth(req, res, next) {
   }
 }
 
-async function getLinkedSpotifyUserId(appUserId) {
+async function getLegacySpotifyUserId(appUserId) {
   const result = await pool.query(
     "SELECT spotify_user_id FROM app_users WHERE id = $1",
     [appUserId]
@@ -133,16 +139,55 @@ async function getLinkedSpotifyUserId(appUserId) {
   return result.rows[0].spotify_user_id;
 }
 
+function getOwnerWhereClause(appUserParamIndex, legacyUserParamIndex) {
+  return `(app_user_id = $${appUserParamIndex} OR (app_user_id IS NULL AND $${legacyUserParamIndex}::INT IS NOT NULL AND user_id = $${legacyUserParamIndex}))`;
+}
+
+async function getSpotifyClientAccessToken() {
+  const now = Date.now();
+  if (spotifyAppToken && now + spotifyTokenRefreshBufferMs < spotifyAppTokenExpiresAt) {
+    return spotifyAppToken;
+  }
+
+  if (!spotifyClientId || !spotifyClientSecret) {
+    throw new Error("SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET must be configured");
+  }
+
+  const authHeader = Buffer.from(`${spotifyClientId}:${spotifyClientSecret}`).toString("base64");
+  const response = await fetch("https://accounts.spotify.com/api/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${authHeader}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.error_description || data.error || "Failed to fetch Spotify app token");
+  }
+
+  spotifyAppToken = data.access_token;
+  spotifyAppTokenExpiresAt = Date.now() + Number(data.expires_in || 3600) * 1000;
+  return spotifyAppToken;
+}
+
 async function ensureCoreTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      spotify_user_id INT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
-      spotify_refresh_token TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS spotify_user_id INT
   `);
 
   await pool.query(`
@@ -206,9 +251,33 @@ async function ensureCoreTables() {
   `);
 
   await pool.query(`
+    ALTER TABLE lists
+    ADD COLUMN IF NOT EXISTS app_user_id INT
+  `);
+
+  await pool.query(`
+    ALTER TABLE lists
+    ALTER COLUMN user_id DROP NOT NULL
+  `).catch(() => {});
+
+  await pool.query(`
     UPDATE lists
     SET updated_at = COALESCE(updated_at, created_at, NOW())
     WHERE updated_at IS NULL
+  `);
+
+  await pool.query(`
+    UPDATE lists AS l
+    SET app_user_id = au.id
+    FROM app_users AS au
+    WHERE l.app_user_id IS NULL
+      AND au.spotify_user_id IS NOT NULL
+      AND l.user_id = au.spotify_user_id
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS lists_app_user_id_idx
+    ON lists (app_user_id)
   `);
 
   await pool.query(`
@@ -232,6 +301,16 @@ async function ensureCoreTables() {
   await pool.query(`
     ALTER TABLE ratings
     ALTER COLUMN album_id DROP NOT NULL
+  `).catch(() => {});
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ADD COLUMN IF NOT EXISTS app_user_id INT
+  `);
+
+  await pool.query(`
+    ALTER TABLE ratings
+    ALTER COLUMN user_id DROP NOT NULL
   `).catch(() => {});
 
   await pool.query(`
@@ -285,8 +364,23 @@ async function ensureCoreTables() {
   `);
 
   await pool.query(`
+    UPDATE ratings AS r
+    SET app_user_id = au.id
+    FROM app_users AS au
+    WHERE r.app_user_id IS NULL
+      AND au.spotify_user_id IS NOT NULL
+      AND r.user_id = au.spotify_user_id
+  `);
+
+  await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS ratings_unique_item
     ON ratings (user_id, item_type, item_id)
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS ratings_unique_item_app_user
+    ON ratings (app_user_id, item_type, item_id)
+    WHERE app_user_id IS NOT NULL
   `);
 }
 
@@ -320,7 +414,7 @@ app.post("/api/auth/register", async (req, res) => {
       `
       INSERT INTO app_users (username, password_hash)
       VALUES ($1, $2)
-      RETURNING id, username, spotify_user_id, created_at
+      RETURNING id, username, created_at
       `,
       [username, passwordHash]
     );
@@ -350,7 +444,7 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, password_hash, spotify_user_id, created_at
+      SELECT id, username, password_hash, created_at
       FROM app_users
       WHERE username = $1
       `,
@@ -368,7 +462,6 @@ app.post("/api/auth/login", async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        spotify_user_id: user.spotify_user_id,
         created_at: user.created_at,
       },
     });
@@ -382,7 +475,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, spotify_user_id, created_at
+      SELECT id, username, created_at
       FROM app_users
       WHERE id = $1
       `,
@@ -400,106 +493,10 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/users/upsert", requireAuth, async (req, res) => {
-  const { spotify_id, display_name, email, spotify_refresh_token } = req.body;
-
-  if (!spotify_id) {
-    return res.status(400).json({ error: "spotify_id is required" });
-  }
-
+app.get("/api/spotify/token", requireAuth, async (_req, res) => {
   try {
-    const spotifyUserResult = await pool.query(
-      `
-      INSERT INTO users (spotify_id, display_name, email)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (spotify_id)
-      DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        email = EXCLUDED.email
-      RETURNING id, spotify_id, display_name, email, created_at
-      `,
-      [spotify_id, display_name ?? null, email ?? null]
-    );
-
-    const spotifyUser = spotifyUserResult.rows[0];
-
-    await pool.query(
-      `
-      UPDATE app_users
-      SET spotify_user_id = $1,
-          spotify_refresh_token = COALESCE($2, spotify_refresh_token)
-      WHERE id = $3
-      `,
-      [spotifyUser.id, spotify_refresh_token ?? null, req.appUserId]
-    );
-
-    return res.json({
-      spotify_user_id: spotifyUser.id,
-      spotify_user: spotifyUser,
-    });
-  } catch (error) {
-    if (error.code === "23505") {
-      return res.status(409).json({ error: "This Spotify account is already linked" });
-    }
-
-    console.error("upsert user error", error);
-    return res.status(500).json({ error: "Failed to upsert user" });
-  }
-});
-
-app.get("/api/spotify/token", requireAuth, async (req, res) => {
-  try {
-    const appUserResult = await pool.query(
-      `
-      SELECT spotify_user_id, spotify_refresh_token
-      FROM app_users
-      WHERE id = $1
-      `,
-      [req.appUserId]
-    );
-
-    const appUser = appUserResult.rows[0];
-    if (!appUser?.spotify_user_id) {
-      return res.status(400).json({ error: "Link Spotify account first" });
-    }
-
-    if (!appUser.spotify_refresh_token) {
-      return res.status(400).json({ error: "Spotify refresh token missing. Re-link Spotify." });
-    }
-
-    const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        client_id: process.env.SPOTIFY_CLIENT_ID || "52ef8393bb03454a8d33998beacb0927",
-        grant_type: "refresh_token",
-        refresh_token: appUser.spotify_refresh_token,
-      }),
-    });
-
-    if (!refreshResponse.ok) {
-      return res.status(401).json({ error: "Failed to refresh Spotify session. Re-link Spotify." });
-    }
-
-    const tokenData = await refreshResponse.json();
-    if (!tokenData.access_token) {
-      return res.status(401).json({ error: "Invalid Spotify refresh response" });
-    }
-
-    if (tokenData.refresh_token) {
-      await pool.query(
-        `
-        UPDATE app_users
-        SET spotify_refresh_token = $1
-        WHERE id = $2
-        `,
-        [tokenData.refresh_token, req.appUserId]
-      );
-    }
-
-    return res.json({ access_token: tokenData.access_token });
+    const accessToken = await getSpotifyClientAccessToken();
+    return res.json({ access_token: accessToken });
   } catch (error) {
     console.error("spotify token error", error);
     return res.status(500).json({ error: "Failed to get Spotify token" });
@@ -526,18 +523,15 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before rating albums" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const result = await pool.query(
       `
       INSERT INTO ratings (
-        user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, updated_at
+        app_user_id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-      ON CONFLICT (user_id, item_type, item_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      ON CONFLICT (app_user_id, item_type, item_id) WHERE app_user_id IS NOT NULL
       DO UPDATE SET
         rating = EXCLUDED.rating,
         review_title = EXCLUDED.review_title,
@@ -545,12 +539,14 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
         item_name = EXCLUDED.item_name,
         item_subtitle = EXCLUDED.item_subtitle,
         image_url = EXCLUDED.image_url,
+        user_id = EXCLUDED.user_id,
         updated_at = NOW()
       RETURNING
-        id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
+        id, app_user_id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
       `,
       [
-        spotifyUserId,
+        req.appUserId,
+        legacySpotifyUserId,
         itemType === "album" ? itemId : null,
         itemType,
         itemId,
@@ -572,20 +568,17 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
 
 app.get("/api/ratings", requireAuth, async (req, res) => {
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.json([]);
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const result = await pool.query(
       `
       SELECT
-        id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
+        id, app_user_id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
       FROM ratings
-      WHERE user_id = $1
+      WHERE ${getOwnerWhereClause(1, 2)}
       ORDER BY updated_at DESC, created_at DESC
       `,
-      [spotifyUserId]
+      [req.appUserId, legacySpotifyUserId]
     );
 
     return res.json(result.rows);
@@ -603,18 +596,15 @@ app.post("/api/lists", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before creating lists" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const result = await pool.query(
       `
-      INSERT INTO lists (user_id, name, updated_at)
-      VALUES ($1, $2, NOW())
-      RETURNING id, user_id, name, created_at, updated_at
+      INSERT INTO lists (app_user_id, user_id, name, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING id, app_user_id, user_id, name, created_at, updated_at
       `,
-      [spotifyUserId, name]
+      [req.appUserId, legacySpotifyUserId, name]
     );
 
     return res.status(201).json(result.rows[0]);
@@ -637,19 +627,16 @@ app.patch("/api/lists/:id", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before editing lists" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const result = await pool.query(
       `
       UPDATE lists
       SET name = $1, updated_at = NOW()
-      WHERE id = $2 AND user_id = $3
-      RETURNING id, user_id, name, created_at, updated_at
+      WHERE id = $2 AND ${getOwnerWhereClause(3, 4)}
+      RETURNING id, app_user_id, user_id, name, created_at, updated_at
       `,
-      [name, listId, spotifyUserId]
+      [name, listId, req.appUserId, legacySpotifyUserId]
     );
 
     if (result.rows.length === 0) {
@@ -671,18 +658,15 @@ app.delete("/api/lists/:id", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before deleting lists" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const result = await pool.query(
       `
       DELETE FROM lists
-      WHERE id = $1 AND user_id = $2
+      WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}
       RETURNING id
       `,
-      [listId, spotifyUserId]
+      [listId, req.appUserId, legacySpotifyUserId]
     );
 
     if (result.rows.length === 0) {
@@ -713,14 +697,11 @@ app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before adding list items" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const ownerResult = await pool.query(
-      "SELECT id FROM lists WHERE id = $1 AND user_id = $2",
-      [listId, spotifyUserId]
+      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
+      [listId, req.appUserId, legacySpotifyUserId]
     );
 
     if (ownerResult.rows.length === 0) {
@@ -772,14 +753,11 @@ app.delete("/api/lists/:id/items/:itemId", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before removing list items" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const ownerResult = await pool.query(
-      "SELECT id FROM lists WHERE id = $1 AND user_id = $2",
-      [listId, spotifyUserId]
+      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
+      [listId, req.appUserId, legacySpotifyUserId]
     );
 
     if (ownerResult.rows.length === 0) {
@@ -847,14 +825,11 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
   }
 
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.status(400).json({ error: "Link Spotify before reordering list items" });
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const ownerResult = await pool.query(
-      "SELECT id FROM lists WHERE id = $1 AND user_id = $2",
-      [listId, spotifyUserId]
+      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
+      [listId, req.appUserId, legacySpotifyUserId]
     );
 
     if (ownerResult.rows.length === 0) {
@@ -902,19 +877,16 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
 
 app.get("/api/lists", requireAuth, async (req, res) => {
   try {
-    const spotifyUserId = await getLinkedSpotifyUserId(req.appUserId);
-    if (!spotifyUserId) {
-      return res.json([]);
-    }
+    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
 
     const listsResult = await pool.query(
       `
-      SELECT id, user_id, name, created_at, updated_at
+      SELECT id, app_user_id, user_id, name, created_at, updated_at
       FROM lists
-      WHERE user_id = $1
+      WHERE ${getOwnerWhereClause(1, 2)}
       ORDER BY updated_at DESC, created_at DESC
       `,
-      [spotifyUserId]
+      [req.appUserId, legacySpotifyUserId]
     );
 
     const listIds = listsResult.rows.map((list) => list.id);

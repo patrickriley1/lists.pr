@@ -7,9 +7,6 @@ import LibraryPage from "./library";
 import "./App.css";
 
 function App() {
-  const clientID = "52ef8393bb03454a8d33998beacb0927";
-  const redirectURI = "https://lists-pr.vercel.app";
-  const authEndpoint = "https://accounts.spotify.com/authorize";
   const apiBaseURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
   const navigate = useNavigate();
@@ -26,21 +23,15 @@ function App() {
       return null;
     }
   });
-  const [linkedSpotifyUserId, setLinkedSpotifyUserId] = useState(() => {
-    const parsed = Number(localStorage.getItem("linked_spotify_user_id"));
-    return Number.isNaN(parsed) ? null : parsed;
-  });
-
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [authError, setAuthError] = useState("");
-  const [spotifyLinkError, setSpotifyLinkError] = useState("");
 
   const [userLists, setUserLists] = useState([]);
   const [reviewByKey, setReviewByKey] = useState({});
   const [reviewEntries, setReviewEntries] = useState([]);
 
-  const canUseApp = Boolean(authToken && linkedSpotifyUserId);
+  const canUseApp = Boolean(authToken);
 
   function getAuthHeaders() {
     if (!authToken) return {};
@@ -50,56 +41,16 @@ function App() {
   function clearAuthState() {
     setAuthToken("");
     setAuthUser(null);
-    setLinkedSpotifyUserId(null);
     setReviewByKey({});
     setReviewEntries([]);
     setUserLists([]);
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
-    localStorage.removeItem("linked_spotify_user_id");
-    localStorage.removeItem("spotify_verifier");
   }
 
   function logout() {
     clearAuthState();
     navigate("/");
-  }
-
-  function generateCodeVerifier(length = 64) {
-    const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-    const randomValues = crypto.getRandomValues(new Uint8Array(length));
-
-    return Array.from(randomValues)
-      .map((x) => possible[x % possible.length])
-      .join("");
-  }
-
-  async function generateCodeChallenge(verifier) {
-    const data = new TextEncoder().encode(verifier);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
-
-    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  }
-
-  async function loginSpotify() {
-    setSpotifyLinkError("");
-    const verifier = generateCodeVerifier();
-    localStorage.setItem("spotify_verifier", verifier);
-
-    const challenge = await generateCodeChallenge(verifier);
-
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: clientID,
-      redirect_uri: redirectURI,
-      code_challenge_method: "S256",
-      code_challenge: challenge,
-      scope: "user-read-private user-read-email",
-      show_dialog: "true",
-    });
-
-    window.location.href = `${authEndpoint}?${params.toString()}`;
   }
 
   async function submitAuth(event) {
@@ -125,15 +76,8 @@ function App() {
 
       setAuthToken(data.token);
       setAuthUser(data.user);
-      setLinkedSpotifyUserId(data.user.spotify_user_id || null);
       localStorage.setItem("app_auth_token", data.token);
       localStorage.setItem("app_auth_user", JSON.stringify(data.user));
-
-      if (data.user.spotify_user_id) {
-        localStorage.setItem("linked_spotify_user_id", String(data.user.spotify_user_id));
-      } else {
-        localStorage.removeItem("linked_spotify_user_id");
-      }
 
       navigate("/");
     } catch (error) {
@@ -190,14 +134,7 @@ function App() {
       })
       .then((data) => {
         setAuthUser(data);
-        setLinkedSpotifyUserId(data.spotify_user_id || null);
         localStorage.setItem("app_auth_user", JSON.stringify(data));
-
-        if (data.spotify_user_id) {
-          localStorage.setItem("linked_spotify_user_id", String(data.spotify_user_id));
-        } else {
-          localStorage.removeItem("linked_spotify_user_id");
-        }
       })
       .catch(() => {
         clearAuthState();
@@ -205,133 +142,7 @@ function App() {
   }, [apiBaseURL, authToken]);
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
-    if (!code || !authToken) return;
-
-    const verifier = localStorage.getItem("spotify_verifier");
-    if (!verifier) {
-      setSpotifyLinkError("Missing Spotify verifier. Please click Link Spotify Account again.");
-      return;
-    }
-
-    fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        client_id: clientID,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: redirectURI,
-        code_verifier: verifier,
-      }),
-    })
-      .then((res) => res.json())
-      .then(async (tokenData) => {
-        if (tokenData.error) {
-          throw new Error(tokenData.error_description || tokenData.error);
-        }
-
-        if (!tokenData.access_token) {
-          throw new Error("Spotify link failed");
-        }
-
-        async function fetchSpotifyProfile(accessToken) {
-          const meResponse = await fetch("https://api.spotify.com/v1/me", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-
-          if (meResponse.ok) {
-            return meResponse.json();
-          }
-
-          let errorMessage = `Spotify profile request failed (${meResponse.status})`;
-          try {
-            const errorData = await meResponse.json();
-            errorMessage = errorData?.error?.message || errorData?.error || errorMessage;
-          } catch {
-            // no-op
-          }
-
-          throw new Error(errorMessage);
-        }
-
-        let spotifyProfile;
-        let accessTokenForProfile = tokenData.access_token;
-
-        try {
-          spotifyProfile = await fetchSpotifyProfile(accessTokenForProfile);
-        } catch (profileError) {
-          // If the initial access token fails, try one refresh and retry /me once.
-          if (!tokenData.refresh_token) {
-            throw profileError;
-          }
-
-          const refreshResponse = await fetch("https://accounts.spotify.com/api/token", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              client_id: clientID,
-              grant_type: "refresh_token",
-              refresh_token: tokenData.refresh_token,
-            }),
-          });
-
-          const refreshData = await refreshResponse.json();
-          if (!refreshResponse.ok || !refreshData.access_token) {
-            throw profileError;
-          }
-
-          accessTokenForProfile = refreshData.access_token;
-          spotifyProfile = await fetchSpotifyProfile(accessTokenForProfile);
-        }
-
-        const linkResponse = await fetch(`${apiBaseURL}/api/users/upsert`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders(),
-          },
-          body: JSON.stringify({
-            spotify_id: spotifyProfile.id,
-            display_name: spotifyProfile.display_name,
-            email: spotifyProfile.email,
-            spotify_refresh_token: tokenData.refresh_token || null,
-          }),
-        });
-
-        if (!linkResponse.ok) {
-          const errorData = await linkResponse.json().catch(() => ({}));
-          throw new Error(errorData.error || "Failed to link Spotify account");
-        }
-
-        const linkedData = await linkResponse.json();
-        const spotifyUserId = linkedData.spotify_user_id;
-
-        setLinkedSpotifyUserId(spotifyUserId);
-        localStorage.setItem("linked_spotify_user_id", String(spotifyUserId));
-
-        setAuthUser((prev) => {
-          const next = { ...(prev || {}), spotify_user_id: spotifyUserId };
-          localStorage.setItem("app_auth_user", JSON.stringify(next));
-          return next;
-        });
-
-        window.history.replaceState({}, document.title, location.pathname);
-      })
-      .catch((error) => {
-        console.error(error);
-        setSpotifyLinkError(`Could not link Spotify: ${error.message}`);
-      });
-  }, [authToken, apiBaseURL, location.pathname]);
-
-  useEffect(() => {
-    if (!authToken || !linkedSpotifyUserId) return;
+    if (!authToken) return;
 
     Promise.all([
       fetch(`${apiBaseURL}/api/ratings`, {
@@ -380,7 +191,7 @@ function App() {
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
       });
-  }, [apiBaseURL, authToken, linkedSpotifyUserId]);
+  }, [apiBaseURL, authToken]);
 
   async function renameList(listId) {
     const list = userLists.find((entry) => entry.id === listId);
@@ -628,20 +439,6 @@ function App() {
     );
   }
 
-  function renderLinkSpotifyCard() {
-    return (
-      <div className="authCard">
-        <h2>Link Spotify</h2>
-        <p>Login succeeded. Link your Spotify account to continue.</p>
-        {spotifyLinkError ? <p className="authError">{spotifyLinkError}</p> : null}
-        <div className="authActions">
-          <button onClick={loginSpotify}>Link Spotify Account</button>
-          <button onClick={logout}>Logout</button>
-        </div>
-      </div>
-    );
-  }
-
   function renderHomePage() {
     if (!authToken) {
       return (
@@ -649,16 +446,6 @@ function App() {
           <h2 className="pageTitle">Home</h2>
           <p className="pageIntro">Create an account or sign in to start building your music library.</p>
           {renderAuthCard()}
-        </div>
-      );
-    }
-
-    if (!linkedSpotifyUserId) {
-      return (
-        <div className="pageSection">
-          <h2 className="pageTitle">Home</h2>
-          <p className="pageIntro">Your app account is ready. Link Spotify to unlock search and library pages.</p>
-          {renderLinkSpotifyCard()}
         </div>
       );
     }
@@ -707,7 +494,6 @@ function App() {
               >
                 View My Lists
               </button>
-              <button onClick={loginSpotify}>Re-link Spotify</button>
               <button onClick={logout}>Logout</button>
             </div>
           </div>

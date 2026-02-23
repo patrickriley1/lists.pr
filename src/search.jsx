@@ -59,7 +59,7 @@ function SearchPage({
       const response = await spotifyApiFetch(`/search?q=${encodeURIComponent(search)}&type=${searchType}`);
 
       if (!response) {
-        setSearchError("Spotify session unavailable. Re-link Spotify from the user menu.");
+        setSearchError("Spotify API unavailable. Please try again.");
         return;
       }
 

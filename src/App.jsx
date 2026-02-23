@@ -523,10 +523,10 @@ function App() {
         <h2 className="pageTitle">Home</h2>
         <p className="pageIntro">Welcome back, {authUser?.username}. Pick a page to continue.</p>
         <div className="homeActions">
-          <Link className="searchCard active" to="/search">
+          <Link className="homeActionCard active" to="/search">
             Go to Search
           </Link>
-          <Link className="searchCard" to="/library">
+          <Link className="homeActionCard" to="/library">
             Go to Library
           </Link>
         </div>

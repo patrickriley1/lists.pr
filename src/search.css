@@ -1,0 +1,251 @@
+.searchSection {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  max-width: 760px;
+  gap: 18px;
+}
+
+.searchCards {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.searchCard {
+  border: 1px solid var(--light);
+  background: transparent;
+  color: var(--light);
+  padding: 12px 18px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.searchCard.active {
+  background: var(--primary);
+  color: var(--dark);
+  border-color: var(--primary);
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.searchBar input {
+  flex: 1;
+}
+
+.resultActions {
+  display: flex;
+}
+
+.resultActions button,
+.resultActions .addListMenuWrap > button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  text-decoration: none;
+}
+
+.resultActions button:hover,
+.resultActions .addListMenuWrap > button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.addListMenuWrap {
+  position: relative;
+}
+
+.addListDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.addListDropdown button {
+  width: 100%;
+  text-align: left;
+}
+
+.dropdownEmpty {
+  margin: 0;
+  color: #b9b9b9;
+}
+
+.resultsList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.resultItem {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 10px;
+  transition: all 0.3s ease;
+  border: 1px solid #2a2a2a;
+}
+
+.resultTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.resultMain {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.resultActionsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.resultInfo {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.resultInfo p {
+  margin: 4px 0;
+}
+
+.resultItem:hover {
+  background-color: var(--secondary);
+  cursor: pointer;
+}
+
+.resultItem.expanded {
+  background-color: #1a1a1a;
+}
+
+.albumExpanded {
+  border-top: 1px solid #2f2f2f;
+  margin-top: 6px;
+  padding-top: 10px;
+}
+
+.albumActions {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.trackList {
+  margin: 8px 0 0 32px;
+  color: var(--light);
+  padding: 0;
+}
+
+.trackList li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+  .searchSection {
+    gap: 14px;
+  }
+
+  .searchCards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .searchCard {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    width: 100%;
+  }
+
+  .searchBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchBar button {
+    width: 100%;
+  }
+
+  .resultItem {
+    padding: 8px;
+  }
+
+  .resultMain {
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .resultTopRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .resultActionsRow {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .resultActions button,
+  .resultActions .addListMenuWrap > button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .resultMain img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+  }
+
+  .albumActions {
+    flex-direction: column;
+  }
+
+  .albumActions button {
+    width: 100%;
+  }
+
+  .trackList {
+    margin-left: 22px;
+  }
+
+  .addListDropdown {
+    left: auto;
+    right: 0;
+  }
+}

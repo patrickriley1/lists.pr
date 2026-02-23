@@ -40,9 +40,10 @@
   text-decoration: none;
 }
 
-.libraryPage button:not(.listPreviewCard, .reviewsTypeSelector):hover {
+.libraryPage button:not(.listPreviewCard):hover {
   border-color: var(--primary);
   background: rgba(0, 187, 255, 0.15);
+  color: var(--light);
 }
 
 .libraryGrid {

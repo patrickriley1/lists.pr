@@ -27,9 +27,14 @@ function AlbumPage({
     setLoading(true);
     setError("");
 
+    const averageRequest =
+      typeof getAverageRating === "function"
+        ? getAverageRating("album", albumId).catch(() => null)
+        : Promise.resolve(null);
+
     Promise.all([
       spotifyApiFetch(`/albums/${albumId}`),
-      getAverageRating("album", albumId).catch(() => null),
+      averageRequest,
     ])
       .then(async ([response, averageData]) => {
         if (!response || !response.ok) {

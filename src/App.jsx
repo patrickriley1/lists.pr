@@ -24,7 +24,7 @@ function App() {
     }
   });
   const [authMode, setAuthMode] = useState("login");
-  const [authForm, setAuthForm] = useState({ username: "", password: "" });
+  const [authForm, setAuthForm] = useState({ username: "", email: "", password: "" });
   const [authError, setAuthError] = useState("");
 
   const [userLists, setUserLists] = useState([]);
@@ -424,6 +424,19 @@ function App() {
           }
           placeholder="Username"
         />
+        {authMode === "register" ? (
+          <input
+            type="email"
+            value={authForm.email}
+            onChange={(e) =>
+              setAuthForm((prev) => ({
+                ...prev,
+                email: e.target.value,
+              }))
+            }
+            placeholder="Email"
+          />
+        ) : null}
         <input
           type="password"
           value={authForm.password}

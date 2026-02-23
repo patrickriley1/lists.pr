@@ -163,9 +163,21 @@ async function ensureCoreTables() {
     CREATE TABLE IF NOT EXISTS app_users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
+      email TEXT,
       password_hash TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS email TEXT
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_unique_idx
+    ON app_users (LOWER(email))
+    WHERE email IS NOT NULL
   `);
 
   await pool.query(`
@@ -398,6 +410,7 @@ app.get("/api/health", async (_req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   const username = String(req.body.username || "").trim();
+  const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
 
   if (username.length < 3) {
@@ -408,15 +421,20 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Password must be at least 8 characters" });
   }
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: "A valid email is required" });
+  }
+
   try {
     const passwordHash = hashPassword(password);
     const result = await pool.query(
       `
-      INSERT INTO app_users (username, password_hash)
-      VALUES ($1, $2)
-      RETURNING id, username, created_at
+      INSERT INTO app_users (username, email, password_hash)
+      VALUES ($1, $2, $3)
+      RETURNING id, username, email, created_at
       `,
-      [username, passwordHash]
+      [username, email, passwordHash]
     );
 
     const user = result.rows[0];
@@ -425,6 +443,10 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(201).json({ token, user });
   } catch (error) {
     if (error.code === "23505") {
+      const detail = String(error.detail || "").toLowerCase();
+      if (detail.includes("email")) {
+        return res.status(409).json({ error: "Email already exists" });
+      }
       return res.status(409).json({ error: "Username already exists" });
     }
 
@@ -444,7 +466,7 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, password_hash, created_at
+      SELECT id, username, email, password_hash, created_at
       FROM app_users
       WHERE username = $1
       `,
@@ -462,6 +484,7 @@ app.post("/api/auth/login", async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
+        email: user.email,
         created_at: user.created_at,
       },
     });
@@ -475,7 +498,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, created_at
+      SELECT id, username, email, created_at
       FROM app_users
       WHERE id = $1
       `,

@@ -5,6 +5,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import SearchPage from "./search";
 import LibraryPage from "./library";
 import AlbumPage from "./album";
+import UserPage from "./user";
 import "./App.css";
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
   const [reviewByKey, setReviewByKey] = useState({});
   const [reviewEntries, setReviewEntries] = useState([]);
   const [listenLaterItems, setListenLaterItems] = useState([]);
+  const [feedEntries, setFeedEntries] = useState([]);
   const [reviewEditor, setReviewEditor] = useState({ open: false, payload: null });
   const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
   const [reviewEditorError, setReviewEditorError] = useState("");
@@ -58,6 +60,7 @@ function App() {
     setReviewEntries([]);
     setUserLists([]);
     setListenLaterItems([]);
+    setFeedEntries([]);
     setReviewEditor({ open: false, payload: null });
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
@@ -199,14 +202,18 @@ function App() {
       fetch(`${apiBaseURL}/api/listen-later`, {
         headers: withAuthHeaders(),
       }),
+      fetch(`${apiBaseURL}/api/feed?limit=40`, {
+        headers: withAuthHeaders(),
+      }),
     ])
-      .then(async ([ratingsRes, listsRes, listenLaterRes]) => {
+      .then(async ([ratingsRes, listsRes, listenLaterRes, feedRes]) => {
         const ratingsData = ratingsRes.ok ? await ratingsRes.json() : [];
         const listsData = listsRes.ok ? await listsRes.json() : [];
         const listenLaterData = listenLaterRes.ok ? await listenLaterRes.json() : [];
-        return { ratingsData, listsData, listenLaterData };
+        const feedData = feedRes.ok ? await feedRes.json() : [];
+        return { ratingsData, listsData, listenLaterData, feedData };
       })
-      .then(({ ratingsData, listsData, listenLaterData }) => {
+      .then(({ ratingsData, listsData, listenLaterData, feedData }) => {
         setReviewEntries(ratingsData);
 
         const reviewMap = ratingsData.reduce((acc, ratingRow) => {
@@ -233,6 +240,7 @@ function App() {
 
         setUserLists(sortListsByRecency(normalizedLists));
         setListenLaterItems(listenLaterData);
+        setFeedEntries(feedData);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -430,6 +438,23 @@ function App() {
         prev.filter((entry) => `${entry.item_type}:${entry.item_id}` !== reviewKey)
       );
 
+      setFeedEntries((prev) => {
+        const existingIndex = prev.findIndex((entry) => entry.id === savedReview.id);
+        if (existingIndex === -1) {
+          return prev;
+        }
+        const next = [...prev];
+        next[existingIndex] = {
+          ...next[existingIndex],
+          ...savedReview,
+          updated_at: savedReview.updated_at,
+          review_title: savedReview.review_title,
+          review_body: savedReview.review_body,
+          rating: savedReview.rating,
+        };
+        return next;
+      });
+
       return true;
     } catch {
       return false;
@@ -529,6 +554,43 @@ function App() {
     return response.json();
   }
 
+  async function searchUsers(query) {
+    const response = await fetch(`${apiBaseURL}/api/users/search?q=${encodeURIComponent(query)}`, {
+      headers: withAuthHeaders(),
+    });
+    if (!response.ok) return [];
+    return response.json();
+  }
+
+  async function getUserProfile(username) {
+    const response = await fetch(`${apiBaseURL}/api/users/${encodeURIComponent(username)}/profile`, {
+      headers: withAuthHeaders(),
+    });
+    if (!response.ok) return null;
+    return response.json();
+  }
+
+  async function toggleFeedLike(reviewId, currentlyLiked) {
+    const response = await fetch(`${apiBaseURL}/api/feed/reviews/${reviewId}/like`, {
+      method: currentlyLiked ? "DELETE" : "POST",
+      headers: withAuthHeaders(),
+    });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    setFeedEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === reviewId
+          ? {
+              ...entry,
+              like_count: data.like_count,
+              liked_by_me: data.liked_by_me,
+            }
+          : entry
+      )
+    );
+  }
+
   function renderAuthCard() {
     return (
       <form className="authCard" onSubmit={submitAuth}>
@@ -598,14 +660,40 @@ function App() {
     return (
       <div className="pageSection">
         <h2 className="pageTitle">Home</h2>
-        <p className="pageIntro">Welcome back, {authUser?.username}. Pick a page to continue.</p>
-        <div className="homeActions">
-          <Link className="homeActionCard active" to="/search">
-            Go to Search
-          </Link>
-          <Link className="homeActionCard" to="/library">
-            Go to Library
-          </Link>
+        <p className="pageIntro">Recent reviews from everyone.</p>
+        <div className="feedList">
+          {feedEntries.length === 0 ? <p>No reviews yet.</p> : null}
+          {feedEntries.map((entry) => (
+            <div key={entry.id} className="feedCard">
+              {entry.image_url ? (
+                <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="feedImage" />
+              ) : (
+                <div className="feedImage placeholder" />
+              )}
+              <div className="feedBody">
+                <div className="feedHeaderRow">
+                  <Link className="feedUsername" to={`/user/${entry.username}`}>
+                    {entry.username}
+                  </Link>
+                  <p className="feedRating">{entry.rating}/10</p>
+                </div>
+                <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
+                <p>{entry.item_subtitle || ""}</p>
+                {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
+                {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
+                <div className="feedActions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void toggleFeedLike(entry.id, Boolean(entry.liked_by_me));
+                    }}
+                  >
+                    {entry.liked_by_me ? "Liked" : "Like"} ({entry.like_count || 0})
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -661,6 +749,7 @@ function App() {
                 listenLaterItems={listenLaterItems}
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
+                searchUsers={searchUsers}
               />
             }
           />
@@ -695,6 +784,15 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+              />
+            }
+          />
+          <Route
+            path="/user/:username"
+            element={
+              <UserPage
+                canUseApp={canUseApp}
+                getUserProfile={getUserProfile}
               />
             }
           />

@@ -1,0 +1,154 @@
+.userPage {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.userGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr);
+  gap: 20px;
+}
+
+.userColumn {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.userColumn h3 {
+  margin: 0;
+  color: var(--light);
+}
+
+.userListCards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.userListCard {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--light);
+  padding: 10px;
+  text-align: left;
+}
+
+.userListCard.active {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.1);
+}
+
+.userListTitle {
+  margin: 0 0 8px 0;
+}
+
+.userListPreviewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.userListPreviewGrid img,
+.userPreviewPlaceholder {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.userPreviewPlaceholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
+.userActiveList {
+  border-top: 1px solid #2a2a2a;
+  padding-top: 10px;
+}
+
+.userActiveList h4 {
+  margin: 0 0 10px 0;
+  color: var(--light);
+}
+
+.userActiveItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.userActiveItem {
+  display: grid;
+  grid-template-columns: 30px 54px 1fr;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.userActiveItem img,
+.userItemPlaceholder {
+  width: 54px;
+  height: 54px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.userItemPlaceholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
+.userActiveItem p {
+  margin: 0;
+}
+
+.userReviews {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.userReviewCard {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.userReviewCard img {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.userReviewCard p {
+  margin: 2px 0;
+}
+
+.userReviewItem,
+.userReviewTitle {
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .userGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .userListCards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

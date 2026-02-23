@@ -422,6 +422,35 @@ async function ensureCoreTables() {
     CREATE INDEX IF NOT EXISTS listen_later_owner_sort_idx
     ON listen_later (app_user_id, created_at DESC)
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS review_likes (
+      id SERIAL PRIMARY KEY,
+      review_id INT NOT NULL REFERENCES ratings(id) ON DELETE CASCADE,
+      app_user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS review_likes_unique_user_review
+    ON review_likes (review_id, app_user_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS review_likes_review_idx
+    ON review_likes (review_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS review_likes_user_idx
+    ON review_likes (app_user_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS app_users_username_idx
+    ON app_users (LOWER(username))
+  `);
 }
 
 app.use(cors());
@@ -571,6 +600,225 @@ app.get("/api/listen-later", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("get listen later error", error);
     return res.status(500).json({ error: "Failed to fetch listen later items" });
+  }
+});
+
+app.get("/api/feed", requireAuth, async (req, res) => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        r.id,
+        r.app_user_id,
+        r.item_type,
+        r.item_id,
+        r.rating,
+        r.review_title,
+        r.review_body,
+        r.item_name,
+        r.item_subtitle,
+        r.image_url,
+        r.created_at,
+        r.updated_at,
+        au.username,
+        COALESCE(lc.like_count, 0)::INT AS like_count,
+        EXISTS (
+          SELECT 1
+          FROM review_likes rl_me
+          WHERE rl_me.review_id = r.id AND rl_me.app_user_id = $1
+        ) AS liked_by_me
+      FROM ratings r
+      JOIN app_users au ON au.id = r.app_user_id
+      LEFT JOIN (
+        SELECT review_id, COUNT(*) AS like_count
+        FROM review_likes
+        GROUP BY review_id
+      ) lc ON lc.review_id = r.id
+      ORDER BY r.updated_at DESC, r.created_at DESC
+      LIMIT $2
+      `,
+      [req.appUserId, limit]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("get feed error", error);
+    return res.status(500).json({ error: "Failed to fetch feed" });
+  }
+});
+
+app.post("/api/feed/reviews/:reviewId/like", requireAuth, async (req, res) => {
+  const reviewId = Number(req.params.reviewId);
+  if (Number.isNaN(reviewId)) {
+    return res.status(400).json({ error: "Invalid review id" });
+  }
+
+  try {
+    const reviewResult = await pool.query("SELECT id FROM ratings WHERE id = $1", [reviewId]);
+    if (reviewResult.rows.length === 0) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO review_likes (review_id, app_user_id)
+      VALUES ($1, $2)
+      ON CONFLICT (review_id, app_user_id) DO NOTHING
+      `,
+      [reviewId, req.appUserId]
+    );
+
+    const countResult = await pool.query(
+      `
+      SELECT COUNT(*)::INT AS like_count
+      FROM review_likes
+      WHERE review_id = $1
+      `,
+      [reviewId]
+    );
+
+    return res.json({ review_id: reviewId, like_count: Number(countResult.rows[0]?.like_count || 0), liked_by_me: true });
+  } catch (error) {
+    console.error("like review error", error);
+    return res.status(500).json({ error: "Failed to like review" });
+  }
+});
+
+app.delete("/api/feed/reviews/:reviewId/like", requireAuth, async (req, res) => {
+  const reviewId = Number(req.params.reviewId);
+  if (Number.isNaN(reviewId)) {
+    return res.status(400).json({ error: "Invalid review id" });
+  }
+
+  try {
+    await pool.query(
+      `
+      DELETE FROM review_likes
+      WHERE review_id = $1 AND app_user_id = $2
+      `,
+      [reviewId, req.appUserId]
+    );
+
+    const countResult = await pool.query(
+      `
+      SELECT COUNT(*)::INT AS like_count
+      FROM review_likes
+      WHERE review_id = $1
+      `,
+      [reviewId]
+    );
+
+    return res.json({ review_id: reviewId, like_count: Number(countResult.rows[0]?.like_count || 0), liked_by_me: false });
+  } catch (error) {
+    console.error("unlike review error", error);
+    return res.status(500).json({ error: "Failed to unlike review" });
+  }
+});
+
+app.get("/api/users/search", requireAuth, async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  if (!query) {
+    return res.json([]);
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT id, username
+      FROM app_users
+      WHERE LOWER(username) LIKE LOWER($1)
+      ORDER BY username ASC
+      LIMIT 25
+      `,
+      [`%${query}%`]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("search users error", error);
+    return res.status(500).json({ error: "Failed to search users" });
+  }
+});
+
+app.get("/api/users/:username/profile", requireAuth, async (req, res) => {
+  const username = String(req.params.username || "").trim();
+  if (!username) {
+    return res.status(400).json({ error: "username is required" });
+  }
+
+  try {
+    const userResult = await pool.query(
+      `
+      SELECT id, username, created_at
+      FROM app_users
+      WHERE LOWER(username) = LOWER($1)
+      LIMIT 1
+      `,
+      [username]
+    );
+
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const listsResult = await pool.query(
+      `
+      SELECT id, app_user_id, name, created_at, updated_at
+      FROM lists
+      WHERE app_user_id = $1
+      ORDER BY updated_at DESC, created_at DESC
+      `,
+      [user.id]
+    );
+
+    const listIds = listsResult.rows.map((list) => list.id);
+    let itemsByListId = {};
+    if (listIds.length > 0) {
+      const itemsResult = await pool.query(
+        `
+        SELECT
+          id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
+        FROM list_items
+        WHERE list_id = ANY($1::int[])
+        ORDER BY position ASC, added_at ASC
+        `,
+        [listIds]
+      );
+
+      itemsByListId = itemsResult.rows.reduce((acc, item) => {
+        if (!acc[item.list_id]) acc[item.list_id] = [];
+        acc[item.list_id].push(item);
+        return acc;
+      }, {});
+    }
+
+    const lists = listsResult.rows.map((list) => ({
+      ...list,
+      items: itemsByListId[list.id] || [],
+    }));
+
+    const ratingsResult = await pool.query(
+      `
+      SELECT
+        id, app_user_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
+      FROM ratings
+      WHERE app_user_id = $1
+      ORDER BY updated_at DESC, created_at DESC
+      `,
+      [user.id]
+    );
+
+    return res.json({
+      user,
+      lists,
+      ratings: ratingsResult.rows,
+    });
+  } catch (error) {
+    console.error("get user profile error", error);
+    return res.status(500).json({ error: "Failed to fetch user profile" });
   }
 });
 

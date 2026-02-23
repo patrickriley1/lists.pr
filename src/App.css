@@ -173,6 +173,80 @@
   margin: 0;
 }
 
+.feedList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 860px;
+}
+
+.feedCard {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.feedImage {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+}
+
+.feedImage.placeholder {
+  background: #151515;
+  border: 1px dashed #2f2f2f;
+}
+
+.feedBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feedBody p {
+  margin: 2px 0;
+}
+
+.feedHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.feedUsername {
+  color: var(--light);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.feedUsername:hover {
+  color: var(--primary);
+}
+
+.feedRating {
+  color: #d9d9d9;
+}
+
+.feedItemName,
+.feedReviewTitle {
+  font-weight: 700;
+}
+
+.feedReviewBody {
+  color: #d0d0d0;
+}
+
+.feedActions {
+  margin-top: 4px;
+}
+
 .reviewModalBackdrop {
   position: fixed;
   inset: 0;
@@ -306,6 +380,15 @@
 
   .authActions button {
     width: 100%;
+  }
+
+  .feedCard {
+    grid-template-columns: 56px 1fr;
+  }
+
+  .feedImage {
+    width: 56px;
+    height: 56px;
   }
 
   .reviewDotsRow {

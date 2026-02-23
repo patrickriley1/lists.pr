@@ -42,6 +42,7 @@ function SearchPage({
   listenLaterItems,
   reviewByKey,
   openReviewEditor,
+  searchUsers,
 }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -62,6 +63,12 @@ function SearchPage({
     setSearchError("");
 
     try {
+      if (searchType === "user") {
+        const users = await searchUsers(search.trim());
+        setResults(users || []);
+        return;
+      }
+
       const response = await spotifyApiFetch(`/search?q=${encodeURIComponent(search)}&type=${searchType}`);
 
       if (!response) {
@@ -179,6 +186,16 @@ function SearchPage({
         >
           Artist Search
         </button>
+        <button
+          className={`searchCard ${searchType === "user" ? "active" : ""}`}
+          type="button"
+          onClick={() => {
+            setSearchType("user");
+            setResults([]);
+          }}
+        >
+          User Search
+        </button>
       </div>
 
       <form
@@ -191,7 +208,13 @@ function SearchPage({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={`Search for a ${searchType === "track" ? "song" : searchType}`}
+          placeholder={
+            searchType === "track"
+              ? "Search for a song"
+              : searchType === "user"
+                ? "Search for a user"
+                : `Search for a ${searchType}`
+          }
         />
         <button type="submit" disabled={searchLoading}>
           {searchLoading ? "Searching..." : "Search"}
@@ -203,29 +226,41 @@ function SearchPage({
       <div className="resultsList">
         {results.map((item) => {
           const isAlbum = searchType === "album";
+          const isUser = searchType === "user";
 
           return (
             <div
-              key={item.id}
+              key={isUser ? item.username : item.id}
               className="resultItem"
               onClick={() => {
                 if (isAlbum) {
                   navigate(`/album/${item.id}`);
                 }
+                if (isUser) {
+                  navigate(`/user/${item.username}`);
+                }
               }}
             >
               <div className="resultTopRow">
                 <div className="resultMain">
-                  <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
+                  {isUser ? (
+                    <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                  ) : (
+                    <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
+                  )}
                   <div className="resultInfo">
-                    <p>{item.name}</p>
+                    <p>{isUser ? item.username : item.name}</p>
                     <p>
-                      {searchType === "artist" ? "Artist" : item.artists?.map((artist) => artist.name).join(", ")}
+                      {isUser
+                        ? "User"
+                        : searchType === "artist"
+                          ? "Artist"
+                          : item.artists?.map((artist) => artist.name).join(", ")}
                     </p>
                   </div>
                 </div>
 
-                {searchType !== "album" ? (
+                {searchType !== "album" && searchType !== "user" ? (
                   <div className="resultActionsRow">
                     <div className="resultActions">{renderAddToListMenu(item)}</div>
                     {searchType === "track" ? (

@@ -124,6 +124,20 @@
   flex: 1;
 }
 
+.resultUserAvatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  border: 1px solid #2a2a2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--light);
+  background: #151515;
+}
+
 .resultActionsRow {
   display: flex;
   align-items: center;
@@ -204,6 +218,12 @@
     width: 56px;
     height: 56px;
     object-fit: cover;
+  }
+
+  .resultUserAvatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.3rem;
   }
 
   .addListDropdown {

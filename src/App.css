@@ -173,6 +173,74 @@
   margin: 0;
 }
 
+.reviewModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.reviewModalCard {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
+  padding: 18px;
+  background: #0f0f0f;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reviewModalCard h3 {
+  margin: 0;
+  color: var(--light);
+}
+
+.reviewDotsRow {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reviewDot {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  border: 1px solid #2a2a2a;
+  background: transparent;
+  padding: 0;
+}
+
+.reviewDot.active {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.35);
+}
+
+.reviewInput,
+.reviewTextarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.reviewTextarea {
+  min-height: 120px;
+  resize: vertical;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
+  color: #111;
+  font-family: 'jetbrains mono', monospace;
+}
+
+.reviewModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 
 @media (max-width: 768px) {
   .header {
@@ -237,6 +305,18 @@
   }
 
   .authActions button {
+    width: 100%;
+  }
+
+  .reviewDotsRow {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .reviewModalActions {
+    flex-direction: column;
+  }
+
+  .reviewModalActions button {
     width: 100%;
   }
 

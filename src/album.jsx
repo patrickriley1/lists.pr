@@ -10,8 +10,8 @@ function AlbumPage({
   addItemToList,
   addToListenLater,
   listenLaterItems,
-  saveReview,
   reviewByKey,
+  openReviewEditor,
   getAverageRating,
 }) {
   const { albumId } = useParams();
@@ -78,32 +78,6 @@ function AlbumPage({
     (entry) => `${entry.item_type}:${entry.item_id}` === listenLaterKey
   );
 
-  async function promptAndSaveAlbumReview() {
-    if (!albumPayload) return;
-
-    const ratingPrompt = window.prompt(
-      "Rate this from 1 to 10",
-      existingReview?.rating ? String(existingReview.rating) : ""
-    );
-    if (ratingPrompt === null) return;
-
-    const parsedRating = Number(ratingPrompt);
-    if (Number.isNaN(parsedRating) || parsedRating < 1 || parsedRating > 10) return;
-
-    const titlePrompt = window.prompt("Optional review title", existingReview?.review_title || "");
-    if (titlePrompt === null) return;
-
-    const bodyPrompt = window.prompt("Optional review text", existingReview?.review_body || "");
-    if (bodyPrompt === null) return;
-
-    await saveReview({
-      ...albumPayload,
-      rating: parsedRating,
-      review_title: titlePrompt.trim() || null,
-      review_body: bodyPrompt.trim() || null,
-    });
-  }
-
   return (
     <div className="albumPage">
       {loading ? <p>Loading album...</p> : null}
@@ -169,7 +143,8 @@ function AlbumPage({
                   <button
                     type="button"
                     onClick={() => {
-                      void promptAndSaveAlbumReview();
+                      if (!albumPayload) return;
+                      openReviewEditor(albumPayload);
                     }}
                   >
                     {existingReview?.rating ? `Rated: ${existingReview.rating}/10` : "Review"}

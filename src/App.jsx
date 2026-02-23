@@ -32,6 +32,10 @@ function App() {
   const [reviewByKey, setReviewByKey] = useState({});
   const [reviewEntries, setReviewEntries] = useState([]);
   const [listenLaterItems, setListenLaterItems] = useState([]);
+  const [reviewEditor, setReviewEditor] = useState({ open: false, payload: null });
+  const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
+  const [reviewEditorError, setReviewEditorError] = useState("");
+  const [reviewEditorSaving, setReviewEditorSaving] = useState(false);
   const spotifyTokenCacheRef = useRef({ accessToken: "", expiresAtMs: 0 });
 
   const canUseApp = Boolean(authToken);
@@ -54,6 +58,10 @@ function App() {
     setReviewEntries([]);
     setUserLists([]);
     setListenLaterItems([]);
+    setReviewEditor({ open: false, payload: null });
+    setReviewDraft({ rating: 0, title: "", body: "" });
+    setReviewEditorError("");
+    setReviewEditorSaving(false);
     spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -387,39 +395,95 @@ function App() {
   }
 
   async function saveReview(payload) {
-    if (!canUseApp) return;
+    if (!canUseApp) return false;
 
-    const response = await fetch(`${apiBaseURL}/api/ratings`, {
-      method: "POST",
-      headers: withAuthHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) return;
-
-    const savedReview = await response.json();
-    const itemType = savedReview.item_type || "album";
-    const itemId = savedReview.item_id || savedReview.album_id;
-    if (!itemId) return;
-    const reviewKey = `${itemType}:${itemId}`;
-
-    setReviewByKey((prev) => ({
-      ...prev,
-      [reviewKey]: savedReview,
-    }));
-
-    setReviewEntries((prev) => {
-      const rest = prev.filter((entry) => {
-        const entryType = entry.item_type || "album";
-        const entryId = entry.item_id || entry.album_id;
-        return `${entryType}:${entryId}` !== reviewKey;
+    try {
+      const response = await fetch(`${apiBaseURL}/api/ratings`, {
+        method: "POST",
+        headers: withAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
       });
-      return [savedReview, ...rest];
+
+      if (!response.ok) return false;
+
+      const savedReview = await response.json();
+      const itemType = savedReview.item_type || "album";
+      const itemId = savedReview.item_id || savedReview.album_id;
+      if (!itemId) return false;
+      const reviewKey = `${itemType}:${itemId}`;
+
+      setReviewByKey((prev) => ({
+        ...prev,
+        [reviewKey]: savedReview,
+      }));
+
+      setReviewEntries((prev) => {
+        const rest = prev.filter((entry) => {
+          const entryType = entry.item_type || "album";
+          const entryId = entry.item_id || entry.album_id;
+          return `${entryType}:${entryId}` !== reviewKey;
+        });
+        return [savedReview, ...rest];
+      });
+
+      setListenLaterItems((prev) =>
+        prev.filter((entry) => `${entry.item_type}:${entry.item_id}` !== reviewKey)
+      );
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function openReviewEditor(payload) {
+    if (!payload?.item_type || !payload?.item_id) return;
+    const reviewKey = `${payload.item_type}:${payload.item_id}`;
+    const existing = reviewByKey[reviewKey];
+
+    setReviewDraft({
+      rating: existing?.rating || 0,
+      title: existing?.review_title || "",
+      body: existing?.review_body || "",
+    });
+    setReviewEditorError("");
+    setReviewEditor({ open: true, payload });
+  }
+
+  function closeReviewEditor() {
+    if (reviewEditorSaving) return;
+    setReviewEditor({ open: false, payload: null });
+    setReviewDraft({ rating: 0, title: "", body: "" });
+    setReviewEditorError("");
+  }
+
+  async function submitReviewEditor() {
+    if (!reviewEditor.payload) return;
+    if (!reviewDraft.rating || reviewDraft.rating < 1 || reviewDraft.rating > 10) {
+      setReviewEditorError("Choose a rating from 1 to 10.");
+      return;
+    }
+
+    setReviewEditorSaving(true);
+    setReviewEditorError("");
+
+    const didSave = await saveReview({
+      ...reviewEditor.payload,
+      rating: reviewDraft.rating,
+      review_title: reviewDraft.title.trim() || null,
+      review_body: reviewDraft.body.trim() || null,
     });
 
-    setListenLaterItems((prev) =>
-      prev.filter((entry) => `${entry.item_type}:${entry.item_id}` !== reviewKey)
-    );
+    setReviewEditorSaving(false);
+
+    if (!didSave) {
+      setReviewEditorError("Could not save review. Please try again.");
+      return;
+    }
+
+    setReviewEditor({ open: false, payload: null });
+    setReviewDraft({ rating: 0, title: "", body: "" });
+    setReviewEditorError("");
   }
 
   async function addToListenLater(payload) {
@@ -595,9 +659,8 @@ function App() {
                 addItemToList={addItemToList}
                 addToListenLater={addToListenLater}
                 listenLaterItems={listenLaterItems}
-                saveReview={saveReview}
                 reviewByKey={reviewByKey}
-                getAverageRating={getAverageRating}
+                openReviewEditor={openReviewEditor}
               />
             }
           />
@@ -629,13 +692,77 @@ function App() {
                 addItemToList={addItemToList}
                 addToListenLater={addToListenLater}
                 listenLaterItems={listenLaterItems}
-                saveReview={saveReview}
                 reviewByKey={reviewByKey}
+                openReviewEditor={openReviewEditor}
+                getAverageRating={getAverageRating}
               />
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        {reviewEditor.open ? (
+          <div
+            className="reviewModalBackdrop"
+            onClick={() => {
+              closeReviewEditor();
+            }}
+          >
+            <div
+              className="reviewModalCard"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <h3>Review</h3>
+              <div className="reviewDotsRow">
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((score) => (
+                  <button
+                    key={score}
+                    type="button"
+                    className={`reviewDot ${reviewDraft.rating === score ? "active" : ""}`}
+                    onClick={() => {
+                      setReviewDraft((prev) => ({ ...prev, rating: score }));
+                      setReviewEditorError("");
+                    }}
+                    aria-label={`Rate ${score} out of 10`}
+                  />
+                ))}
+              </div>
+              <input
+                type="text"
+                className="reviewInput"
+                placeholder="Review title (optional)"
+                value={reviewDraft.title}
+                onChange={(event) => {
+                  setReviewDraft((prev) => ({ ...prev, title: event.target.value }));
+                }}
+              />
+              <textarea
+                className="reviewTextarea"
+                placeholder="Review text (optional)"
+                value={reviewDraft.body}
+                onChange={(event) => {
+                  setReviewDraft((prev) => ({ ...prev, body: event.target.value }));
+                }}
+              />
+              {reviewEditorError ? <p className="authError">{reviewEditorError}</p> : null}
+              <div className="reviewModalActions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void submitReviewEditor();
+                  }}
+                  disabled={reviewEditorSaving}
+                >
+                  {reviewEditorSaving ? "Saving..." : "Save"}
+                </button>
+                <button type="button" onClick={closeReviewEditor} disabled={reviewEditorSaving}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <Analytics />
         <SpeedInsights />
       </div>

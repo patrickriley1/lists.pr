@@ -40,8 +40,8 @@ function SearchPage({
   addItemToList,
   addToListenLater,
   listenLaterItems,
-  saveReview,
   reviewByKey,
+  openReviewEditor,
 }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -139,38 +139,6 @@ function SearchPage({
         ) : null}
       </div>
     );
-  }
-
-  async function promptAndSaveReview(item) {
-    const payload = buildItemPayload(item, searchType);
-    const reviewKey = `${payload.item_type}:${payload.item_id}`;
-    const existingReview = reviewByKey[reviewKey];
-
-    const ratingPrompt = window.prompt(
-      "Rate this from 1 to 10",
-      existingReview?.rating ? String(existingReview.rating) : ""
-    );
-    if (ratingPrompt === null) return;
-
-    const parsedRating = Number(ratingPrompt);
-    if (Number.isNaN(parsedRating) || parsedRating < 1 || parsedRating > 10) return;
-
-    const titlePrompt = window.prompt("Optional review title", existingReview?.review_title || "");
-    if (titlePrompt === null) return;
-
-    const bodyPrompt = window.prompt("Optional review text", existingReview?.review_body || "");
-    if (bodyPrompt === null) return;
-
-    await saveReview({
-      item_type: payload.item_type,
-      item_id: payload.item_id,
-      item_name: payload.item_name,
-      item_subtitle: payload.item_subtitle,
-      image_url: payload.image_url,
-      rating: parsedRating,
-      review_title: titlePrompt.trim() || null,
-      review_body: bodyPrompt.trim() || null,
-    });
   }
 
   if (!canUseApp) {
@@ -274,13 +242,13 @@ function SearchPage({
                       </div>
                     ) : null}
                     <div className="resultActions">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void promptAndSaveReview(item);
-                        }}
-                      >
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReviewEditor(buildItemPayload(item, searchType));
+                          }}
+                        >
                         {(() => {
                           const itemType = searchType === "track" ? "track" : searchType;
                           const review = reviewByKey[`${itemType}:${item.id}`];

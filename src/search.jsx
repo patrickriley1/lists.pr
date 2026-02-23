@@ -323,7 +323,7 @@ function SearchPage({
                           void addToListenLater(buildItemPayload(item, searchType));
                         }}
                       >
-                        {listenLaterByKey[`${searchType}:${item.id}`] ? "In Listen Later" : "Listen Later"}
+                        {listenLaterByKey[`${searchType}:${item.id}`] ? "Queued" : "Listen Later"}
                       </button>
                     </div>
                   ) : null}

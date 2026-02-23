@@ -40,10 +40,6 @@ function AlbumPage({ canUseApp, spotifyApiFetch }) {
 
   return (
     <div className="albumPage">
-      <Link className="albumBackLink" to="/search">
-        Back to Search
-      </Link>
-
       {loading ? <p>Loading album...</p> : null}
       {error ? <p className="authError">{error}</p> : null}
 

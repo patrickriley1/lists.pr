@@ -37,6 +37,8 @@ function SearchPage({
   userLists,
   createNewList,
   addItemToList,
+  addToListenLater,
+  listenLaterItems,
   saveReview,
   reviewByKey,
 }) {
@@ -48,6 +50,10 @@ function SearchPage({
   const [expandedAlbumId, setExpandedAlbumId] = useState(null);
   const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+  const listenLaterByKey = (listenLaterItems || []).reduce((acc, entry) => {
+    acc[`${entry.item_type}:${entry.item_id}`] = entry;
+    return acc;
+  }, {});
 
   async function searchSpotify() {
     if (!search.trim() || !canUseApp) return;
@@ -305,6 +311,19 @@ function SearchPage({
               </div>
 
               <div className="resultActions">{renderAddToListMenu(item)}</div>
+              {(searchType === "album" || searchType === "track") ? (
+                <div className="resultActions">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void addToListenLater(buildItemPayload(item, searchType));
+                    }}
+                  >
+                    {listenLaterByKey[`${searchType}:${item.id}`] ? "In Listen Later" : "Listen Later"}
+                  </button>
+                </div>
+              ) : null}
               <div className="resultActions">
                 <button
                   type="button"

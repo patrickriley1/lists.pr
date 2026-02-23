@@ -394,6 +394,29 @@ async function ensureCoreTables() {
     CREATE INDEX IF NOT EXISTS list_items_list_position_idx
     ON list_items (list_id, position ASC, added_at ASC)
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS listen_later (
+      id SERIAL PRIMARY KEY,
+      app_user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      item_type TEXT NOT NULL,
+      item_id TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      item_subtitle TEXT,
+      image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS listen_later_unique_item
+    ON listen_later (app_user_id, item_type, item_id)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS listen_later_owner_sort_idx
+    ON listen_later (app_user_id, created_at DESC)
+  `);
 }
 
 app.use(cors());
@@ -527,6 +550,85 @@ app.get("/api/spotify/token", requireAuth, async (_req, res) => {
   }
 });
 
+app.get("/api/listen-later", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT id, app_user_id, item_type, item_id, item_name, item_subtitle, image_url, created_at
+      FROM listen_later
+      WHERE app_user_id = $1
+      ORDER BY created_at DESC, id DESC
+      `,
+      [req.appUserId]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("get listen later error", error);
+    return res.status(500).json({ error: "Failed to fetch listen later items" });
+  }
+});
+
+app.post("/api/listen-later", requireAuth, async (req, res) => {
+  const itemType = String(req.body.item_type || "").trim();
+  const itemId = String(req.body.item_id || "").trim();
+  const itemName = String(req.body.item_name || "").trim();
+  const itemSubtitle = typeof req.body.item_subtitle === "string" ? req.body.item_subtitle.trim() : "";
+  const imageUrl = typeof req.body.image_url === "string" ? req.body.image_url.trim() : "";
+
+  if (!["album", "track"].includes(itemType) || !itemId || !itemName) {
+    return res.status(400).json({ error: "item_type, item_id, and item_name are required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO listen_later (app_user_id, item_type, item_id, item_name, item_subtitle, image_url)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (app_user_id, item_type, item_id)
+      DO UPDATE SET
+        item_name = EXCLUDED.item_name,
+        item_subtitle = EXCLUDED.item_subtitle,
+        image_url = EXCLUDED.image_url
+      RETURNING id, app_user_id, item_type, item_id, item_name, item_subtitle, image_url, created_at
+      `,
+      [req.appUserId, itemType, itemId, itemName, itemSubtitle || null, imageUrl || null]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("create listen later error", error);
+    return res.status(500).json({ error: "Failed to save listen later item" });
+  }
+});
+
+app.delete("/api/listen-later/:id", requireAuth, async (req, res) => {
+  const itemRowId = Number(req.params.id);
+  if (Number.isNaN(itemRowId)) {
+    return res.status(400).json({ error: "Invalid listen later item id" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      DELETE FROM listen_later
+      WHERE id = $1 AND app_user_id = $2
+      RETURNING id
+      `,
+      [itemRowId, req.appUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Listen later item not found" });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error("delete listen later error", error);
+    return res.status(500).json({ error: "Failed to delete listen later item" });
+  }
+});
+
 app.post("/api/ratings", requireAuth, async (req, res) => {
   const rawItemType = String(req.body.item_type || "").trim();
   const itemType = rawItemType || (req.body.album_id ? "album" : "");
@@ -579,6 +681,14 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
         itemSubtitle || null,
         imageUrl || null,
       ]
+    );
+
+    await pool.query(
+      `
+      DELETE FROM listen_later
+      WHERE app_user_id = $1 AND item_type = $2 AND item_id = $3
+      `,
+      [req.appUserId, itemType, itemId]
     );
 
     return res.json(result.rows[0]);

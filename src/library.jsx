@@ -11,6 +11,8 @@ function LibraryPage({
   reorderListItems,
   removeItemFromList,
   reviewEntries,
+  listenLaterItems,
+  removeListenLaterItem,
 }) {
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
@@ -323,6 +325,41 @@ function LibraryPage({
         </div>
 
         <div className="libraryColumn reviewsColumn">
+          <div className="myListsPanel">
+            <div className="reviewsHeaderRow">
+              <h3>Listen Later</h3>
+            </div>
+            {(listenLaterItems || []).length === 0 ? (
+              <p>No albums or songs saved for later yet.</p>
+            ) : (
+              <div className="myListItems">
+                {listenLaterItems.map((entry) => (
+                  <div key={`${entry.item_type}:${entry.item_id}`} className="myListItem reviewCard listenLaterCard">
+                    {entry.image_url ? (
+                      <img src={entry.image_url} alt={entry.item_name || "Listen later item"} className="reviewImage" />
+                    ) : (
+                      <div className="reviewImage placeholder" />
+                    )}
+                    <div className="reviewBody">
+                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
+                      <p>{entry.item_subtitle || ""}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="removeListenLaterButton"
+                      onClick={() => {
+                        void removeListenLaterItem(entry.id);
+                      }}
+                      aria-label={`Remove ${entry.item_name} from listen later`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="myListsPanel">
             <div className="reviewsHeaderRow">
               <h3>My Reviews</h3>

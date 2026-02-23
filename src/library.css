@@ -113,6 +113,16 @@
   align-items: start;
 }
 
+.listenLaterCard {
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+}
+
+.removeListenLaterButton {
+  align-self: center;
+  white-space: nowrap;
+}
+
 .reviewImage {
   width: 56px;
   height: 56px;

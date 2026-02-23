@@ -30,6 +30,7 @@ function App() {
   const [userLists, setUserLists] = useState([]);
   const [reviewByKey, setReviewByKey] = useState({});
   const [reviewEntries, setReviewEntries] = useState([]);
+  const [listenLaterItems, setListenLaterItems] = useState([]);
   const spotifyTokenCacheRef = useRef({ accessToken: "", expiresAtMs: 0 });
 
   const canUseApp = Boolean(authToken);
@@ -51,6 +52,7 @@ function App() {
     setReviewByKey({});
     setReviewEntries([]);
     setUserLists([]);
+    setListenLaterItems([]);
     spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -185,13 +187,17 @@ function App() {
       fetch(`${apiBaseURL}/api/lists`, {
         headers: withAuthHeaders(),
       }),
+      fetch(`${apiBaseURL}/api/listen-later`, {
+        headers: withAuthHeaders(),
+      }),
     ])
-      .then(async ([ratingsRes, listsRes]) => {
+      .then(async ([ratingsRes, listsRes, listenLaterRes]) => {
         const ratingsData = ratingsRes.ok ? await ratingsRes.json() : [];
         const listsData = listsRes.ok ? await listsRes.json() : [];
-        return { ratingsData, listsData };
+        const listenLaterData = listenLaterRes.ok ? await listenLaterRes.json() : [];
+        return { ratingsData, listsData, listenLaterData };
       })
-      .then(({ ratingsData, listsData }) => {
+      .then(({ ratingsData, listsData, listenLaterData }) => {
         setReviewEntries(ratingsData);
 
         const reviewMap = ratingsData.reduce((acc, ratingRow) => {
@@ -217,6 +223,7 @@ function App() {
         }));
 
         setUserLists(sortListsByRecency(normalizedLists));
+        setListenLaterItems(listenLaterData);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -408,6 +415,41 @@ function App() {
       });
       return [savedReview, ...rest];
     });
+
+    setListenLaterItems((prev) =>
+      prev.filter((entry) => `${entry.item_type}:${entry.item_id}` !== reviewKey)
+    );
+  }
+
+  async function addToListenLater(payload) {
+    if (!canUseApp) return;
+    if (!["album", "track"].includes(payload?.item_type)) return;
+
+    const response = await fetch(`${apiBaseURL}/api/listen-later`, {
+      method: "POST",
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) return;
+
+    const saved = await response.json();
+    setListenLaterItems((prev) => {
+      const rest = prev.filter(
+        (entry) => !(entry.item_type === saved.item_type && entry.item_id === saved.item_id)
+      );
+      return [saved, ...rest];
+    });
+  }
+
+  async function removeListenLaterItem(itemRowId) {
+    const response = await fetch(`${apiBaseURL}/api/listen-later/${itemRowId}`, {
+      method: "DELETE",
+      headers: withAuthHeaders(),
+    });
+
+    if (!response.ok) return;
+    setListenLaterItems((prev) => prev.filter((entry) => entry.id !== itemRowId));
   }
 
   function renderAuthCard() {
@@ -538,6 +580,8 @@ function App() {
                 userLists={userLists}
                 createNewList={createNewList}
                 addItemToList={addItemToList}
+                addToListenLater={addToListenLater}
+                listenLaterItems={listenLaterItems}
                 saveReview={saveReview}
                 reviewByKey={reviewByKey}
               />
@@ -555,6 +599,8 @@ function App() {
                 reorderListItems={reorderListItems}
                 removeItemFromList={removeItemFromList}
                 reviewEntries={reviewEntries}
+                listenLaterItems={listenLaterItems}
+                removeListenLaterItem={removeListenLaterItem}
               />
             }
           />

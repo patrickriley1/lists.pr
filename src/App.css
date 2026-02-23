@@ -204,6 +204,22 @@
   display: flex;
 }
 
+.resultActions button,
+.resultActions .addListMenuWrap > button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  text-decoration: none;
+}
+
+.resultActions button:hover,
+.resultActions .addListMenuWrap > button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
 .addListMenuWrap {
   position: relative;
 }
@@ -251,17 +267,35 @@
   border: 1px solid #2a2a2a;
 }
 
+.resultTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .resultMain {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.resultActionsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .resultInfo {
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
 }
 
 .resultInfo p {
@@ -398,6 +432,22 @@
   .resultMain {
     gap: 10px;
     align-items: flex-start;
+  }
+
+  .resultTopRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .resultActionsRow {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .resultActions button,
+  .resultActions .addListMenuWrap > button {
+    width: 100%;
+    text-align: center;
   }
 
   .resultMain img {

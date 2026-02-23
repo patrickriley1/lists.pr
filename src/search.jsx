@@ -300,44 +300,48 @@ function SearchPage({
                 }
               }}
             >
-              <div className="resultMain">
-                <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
-                <div className="resultInfo">
-                  <p>{item.name}</p>
-                  <p>
-                    {searchType === "artist" ? "Artist" : item.artists?.map((artist) => artist.name).join(", ")}
-                  </p>
+              <div className="resultTopRow">
+                <div className="resultMain">
+                  <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
+                  <div className="resultInfo">
+                    <p>{item.name}</p>
+                    <p>
+                      {searchType === "artist" ? "Artist" : item.artists?.map((artist) => artist.name).join(", ")}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="resultActions">{renderAddToListMenu(item)}</div>
-              {(searchType === "album" || searchType === "track") ? (
-                <div className="resultActions">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void addToListenLater(buildItemPayload(item, searchType));
-                    }}
-                  >
-                    {listenLaterByKey[`${searchType}:${item.id}`] ? "In Listen Later" : "Listen Later"}
-                  </button>
+                <div className="resultActionsRow">
+                  <div className="resultActions">{renderAddToListMenu(item)}</div>
+                  {(searchType === "album" || searchType === "track") ? (
+                    <div className="resultActions">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void addToListenLater(buildItemPayload(item, searchType));
+                        }}
+                      >
+                        {listenLaterByKey[`${searchType}:${item.id}`] ? "In Listen Later" : "Listen Later"}
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="resultActions">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void promptAndSaveReview(item);
+                      }}
+                    >
+                      {(() => {
+                        const itemType = searchType === "track" ? "track" : searchType;
+                        const review = reviewByKey[`${itemType}:${item.id}`];
+                        return review?.rating ? `Rated: ${review.rating}/10` : "Review";
+                      })()}
+                    </button>
+                  </div>
                 </div>
-              ) : null}
-              <div className="resultActions">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void promptAndSaveReview(item);
-                  }}
-                >
-                  {(() => {
-                    const itemType = searchType === "track" ? "track" : searchType;
-                    const review = reviewByKey[`${itemType}:${item.id}`];
-                    return review?.rating ? `Rated: ${review.rating}/10` : "Review";
-                  })()}
-                </button>
               </div>
 
               {isExpanded ? (

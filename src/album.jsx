@@ -49,12 +49,14 @@ function AlbumPage({ canUseApp, spotifyApiFetch }) {
 
       {!loading && !error && album ? (
         <div className="albumDetailLayout">
-          <img src={album.images?.[0]?.url} alt={album.name} className="albumCoverLarge" />
+          <div className="albumHeroRow">
+            <img src={album.images?.[0]?.url} alt={album.name} className="albumCoverLarge" />
 
-          <div className="albumMeta">
-            <h2 className="albumDetailTitle">{album.name}</h2>
-            <p className="albumDetailArtist">{artists}</p>
-            <p className="albumDetailYear">{year}</p>
+            <div className="albumMeta">
+              <h2 className="albumDetailTitle">{album.name}</h2>
+              <p className="albumDetailArtist">{artists}</p>
+              <p className="albumDetailYear">{year}</p>
+            </div>
           </div>
 
           <div className="albumTrackRows">

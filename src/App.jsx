@@ -611,6 +611,13 @@ function App() {
               <AlbumPage
                 canUseApp={canUseApp}
                 spotifyApiFetch={spotifyApiFetch}
+                userLists={userLists}
+                createNewList={createNewList}
+                addItemToList={addItemToList}
+                addToListenLater={addToListenLater}
+                listenLaterItems={listenLaterItems}
+                saveReview={saveReview}
+                reviewByKey={reviewByKey}
               />
             }
           />

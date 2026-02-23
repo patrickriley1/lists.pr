@@ -50,6 +50,66 @@
   min-width: 0;
 }
 
+.albumTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.albumActionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.albumActionRow button,
+.albumAddListMenuWrap > button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  text-decoration: none;
+}
+
+.albumActionRow button:hover,
+.albumAddListMenuWrap > button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.albumAddListMenuWrap {
+  position: relative;
+}
+
+.albumAddListDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.albumAddListDropdown button {
+  width: 100%;
+  text-align: left;
+}
+
+.dropdownEmpty {
+  margin: 0;
+  color: #b9b9b9;
+}
+
 .albumDetailTitle {
   margin: 0;
   color: var(--light);
@@ -109,6 +169,27 @@
 @media (max-width: 768px) {
   .albumHeroRow {
     flex-direction: column;
+  }
+
+  .albumTitleRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .albumActionRow {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .albumActionRow button,
+  .albumAddListMenuWrap > button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .albumAddListDropdown {
+    left: auto;
+    right: 0;
   }
 
   .albumCoverLarge {

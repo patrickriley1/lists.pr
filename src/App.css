@@ -220,6 +220,12 @@
   gap: 10px;
 }
 
+.feedHeaderRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .feedUsername {
   color: var(--light);
   text-decoration: none;
@@ -243,8 +249,25 @@
   color: #d0d0d0;
 }
 
-.feedActions {
-  margin-top: 4px;
+.feedLikeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--light);
+}
+
+.feedLikeButton.active {
+  border-color: #f1728f;
+  background: rgba(241, 114, 143, 0.15);
+}
+
+.feedLikeIcon {
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .reviewModalBackdrop {

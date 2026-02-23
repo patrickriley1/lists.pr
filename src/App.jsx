@@ -670,30 +670,33 @@ function App() {
               ) : (
                 <div className="feedImage placeholder" />
               )}
-              <div className="feedBody">
-                <div className="feedHeaderRow">
-                  <Link className="feedUsername" to={`/user/${entry.username}`}>
-                    {entry.username}
-                  </Link>
-                  <p className="feedRating">{entry.rating}/10</p>
-                </div>
-                <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
-                <p>{entry.item_subtitle || ""}</p>
-                {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
-                {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
-                <div className="feedActions">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void toggleFeedLike(entry.id, Boolean(entry.liked_by_me));
-                    }}
-                  >
-                    {entry.liked_by_me ? "Liked" : "Like"} ({entry.like_count || 0})
-                  </button>
+                <div className="feedBody">
+                  <div className="feedHeaderRow">
+                    <Link className="feedUsername" to={`/user/${entry.username}`}>
+                      {entry.username}
+                    </Link>
+                    <div className="feedHeaderRight">
+                      <p className="feedRating">{entry.rating}/10</p>
+                      <button
+                        type="button"
+                        className={`feedLikeButton ${entry.liked_by_me ? "active" : ""}`}
+                        onClick={() => {
+                          void toggleFeedLike(entry.id, Boolean(entry.liked_by_me));
+                        }}
+                        aria-label="Like review"
+                      >
+                        <span className="feedLikeIcon">{entry.liked_by_me ? "♥" : "♡"}</span>
+                        <span>{entry.like_count || 0}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
+                  <p>{entry.item_subtitle || ""}</p>
+                  {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
+                  {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
     );

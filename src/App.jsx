@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import SearchPage from "./search";
 import LibraryPage from "./library";
+import AlbumPage from "./album";
 import "./App.css";
 
 function App() {
@@ -601,6 +602,15 @@ function App() {
                 reviewEntries={reviewEntries}
                 listenLaterItems={listenLaterItems}
                 removeListenLaterItem={removeListenLaterItem}
+              />
+            }
+          />
+          <Route
+            path="/album/:albumId"
+            element={
+              <AlbumPage
+                canUseApp={canUseApp}
+                spotifyApiFetch={spotifyApiFetch}
               />
             }
           />

@@ -148,32 +148,6 @@
   cursor: pointer;
 }
 
-.resultItem.expanded {
-  background-color: #1a1a1a;
-}
-
-.albumExpanded {
-  border-top: 1px solid #2f2f2f;
-  margin-top: 6px;
-  padding-top: 10px;
-}
-
-.albumActions {
-  display: flex;
-  gap: 10px;
-  margin: 10px 0;
-}
-
-.trackList {
-  margin: 8px 0 0 32px;
-  color: var(--light);
-  padding: 0;
-}
-
-.trackList li {
-  margin-bottom: 4px;
-}
-
 @media (max-width: 768px) {
   .searchSection {
     gap: 14px;
@@ -230,18 +204,6 @@
     width: 56px;
     height: 56px;
     object-fit: cover;
-  }
-
-  .albumActions {
-    flex-direction: column;
-  }
-
-  .albumActions button {
-    width: 100%;
-  }
-
-  .trackList {
-    margin-left: 22px;
   }
 
   .addListDropdown {

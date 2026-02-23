@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import "./search.css";
 
 function buildItemPayload(item, searchType) {
@@ -43,13 +43,12 @@ function SearchPage({
   saveReview,
   reviewByKey,
 }) {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [expandedAlbumId, setExpandedAlbumId] = useState(null);
-  const [albumDetailsById, setAlbumDetailsById] = useState({});
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
   const listenLaterByKey = (listenLaterItems || []).reduce((acc, entry) => {
     acc[`${entry.item_type}:${entry.item_id}`] = entry;
@@ -79,66 +78,20 @@ function SearchPage({
 
       if (searchType === "album") {
         setResults(data.albums?.items || []);
-        setExpandedAlbumId(null);
         return;
       }
 
       if (searchType === "track") {
         setResults(data.tracks?.items || []);
-        setExpandedAlbumId(null);
         return;
       }
 
       setResults(data.artists?.items || []);
-      setExpandedAlbumId(null);
     } catch {
       setSearchError("Search failed. Check your connection and try again.");
     } finally {
       setSearchLoading(false);
     }
-  }
-
-  function toggleAlbumExpand(albumId) {
-    if (expandedAlbumId === albumId) {
-      setExpandedAlbumId(null);
-      return;
-    }
-
-    setExpandedAlbumId(albumId);
-
-    if (albumDetailsById[albumId]) return;
-
-    setAlbumDetailsById((prev) => ({
-      ...prev,
-      [albumId]: { loading: true, tracks: [], releaseDate: "" },
-    }));
-
-    spotifyApiFetch(`/albums/${albumId}`)
-      .then(async (res) => {
-        if (!res || !res.ok) {
-          setAlbumDetailsById((prev) => ({
-            ...prev,
-            [albumId]: { loading: false, tracks: [], releaseDate: "" },
-          }));
-          return;
-        }
-
-        const data = await res.json();
-        setAlbumDetailsById((prev) => ({
-          ...prev,
-          [albumId]: {
-            loading: false,
-            tracks: data.tracks?.items || [],
-            releaseDate: data.release_date || "",
-          },
-        }));
-      })
-      .catch(() => {
-        setAlbumDetailsById((prev) => ({
-          ...prev,
-          [albumId]: { loading: false, tracks: [], releaseDate: "" },
-        }));
-      });
   }
 
   function renderAddToListMenu(item) {
@@ -234,7 +187,6 @@ function SearchPage({
           onClick={() => {
             setSearchType("album");
             setResults([]);
-            setExpandedAlbumId(null);
           }}
         >
           Album Search
@@ -245,7 +197,6 @@ function SearchPage({
           onClick={() => {
             setSearchType("track");
             setResults([]);
-            setExpandedAlbumId(null);
           }}
         >
           Song Search
@@ -256,7 +207,6 @@ function SearchPage({
           onClick={() => {
             setSearchType("artist");
             setResults([]);
-            setExpandedAlbumId(null);
           }}
         >
           Artist Search
@@ -285,19 +235,14 @@ function SearchPage({
       <div className="resultsList">
         {results.map((item) => {
           const isAlbum = searchType === "album";
-          const isExpanded = isAlbum && expandedAlbumId === item.id;
-          const details = albumDetailsById[item.id];
-          const releaseYear = details?.releaseDate
-            ? details.releaseDate.slice(0, 4)
-            : item.release_date?.slice(0, 4);
 
           return (
             <div
               key={item.id}
-              className={`resultItem ${isExpanded ? "expanded" : ""}`}
+              className="resultItem"
               onClick={() => {
                 if (isAlbum) {
-                  toggleAlbumExpand(item.id);
+                  navigate(`/album/${item.id}`);
                 }
               }}
             >
@@ -344,22 +289,6 @@ function SearchPage({
                   </div>
                 </div>
               </div>
-
-              {isExpanded ? (
-                <div className="albumExpanded">
-                  <p>Released: {releaseYear || "Unknown"}</p>
-                  <p>Tracklist</p>
-                  {details?.loading ? (
-                    <p>Loading tracks...</p>
-                  ) : (
-                    <ol className="trackList">
-                      {(details?.tracks || []).map((track) => (
-                        <li key={track.id || track.name}>{track.name}</li>
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              ) : null}
             </div>
           );
         })}

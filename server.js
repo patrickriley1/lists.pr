@@ -126,23 +126,6 @@ function requireAuth(req, res, next) {
   }
 }
 
-async function getLegacySpotifyUserId(appUserId) {
-  const result = await pool.query(
-    "SELECT spotify_user_id FROM app_users WHERE id = $1",
-    [appUserId]
-  );
-
-  if (result.rows.length === 0) {
-    return null;
-  }
-
-  return result.rows[0].spotify_user_id;
-}
-
-function getOwnerWhereClause(appUserParamIndex, legacyUserParamIndex) {
-  return `(app_user_id = $${appUserParamIndex} OR (app_user_id IS NULL AND $${legacyUserParamIndex}::INT IS NOT NULL AND user_id = $${legacyUserParamIndex}))`;
-}
-
 async function getSpotifyClientAccessToken() {
   const now = Date.now();
   if (spotifyAppToken && now + spotifyTokenRefreshBufferMs < spotifyAppTokenExpiresAt) {
@@ -281,6 +264,12 @@ async function ensureCoreTables() {
   `);
 
   await pool.query(`
+    CREATE INDEX IF NOT EXISTS lists_owner_sort_idx
+    ON lists (app_user_id, updated_at DESC, created_at DESC)
+    WHERE app_user_id IS NOT NULL
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS ratings (
       id SERIAL PRIMARY KEY,
       user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -381,6 +370,17 @@ async function ensureCoreTables() {
     CREATE UNIQUE INDEX IF NOT EXISTS ratings_unique_item_app_user
     ON ratings (app_user_id, item_type, item_id)
     WHERE app_user_id IS NOT NULL
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS ratings_owner_sort_idx
+    ON ratings (app_user_id, updated_at DESC, created_at DESC)
+    WHERE app_user_id IS NOT NULL
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS list_items_list_position_idx
+    ON list_items (list_id, position ASC, added_at ASC)
   `);
 }
 
@@ -496,7 +496,8 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
 app.get("/api/spotify/token", requireAuth, async (_req, res) => {
   try {
     const accessToken = await getSpotifyClientAccessToken();
-    return res.json({ access_token: accessToken });
+    const remainingSeconds = Math.max(0, Math.floor((spotifyAppTokenExpiresAt - Date.now()) / 1000));
+    return res.json({ access_token: accessToken, expires_in: remainingSeconds });
   } catch (error) {
     console.error("spotify token error", error);
     return res.status(500).json({ error: "Failed to get Spotify token" });
@@ -523,8 +524,6 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const result = await pool.query(
       `
       INSERT INTO ratings (
@@ -546,7 +545,7 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
       `,
       [
         req.appUserId,
-        legacySpotifyUserId,
+        null,
         itemType === "album" ? itemId : null,
         itemType,
         itemId,
@@ -568,17 +567,15 @@ app.post("/api/ratings", requireAuth, async (req, res) => {
 
 app.get("/api/ratings", requireAuth, async (req, res) => {
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const result = await pool.query(
       `
       SELECT
         id, app_user_id, user_id, album_id, item_type, item_id, rating, review_title, review_body, item_name, item_subtitle, image_url, created_at, updated_at
       FROM ratings
-      WHERE ${getOwnerWhereClause(1, 2)}
+      WHERE app_user_id = $1
       ORDER BY updated_at DESC, created_at DESC
       `,
-      [req.appUserId, legacySpotifyUserId]
+      [req.appUserId]
     );
 
     return res.json(result.rows);
@@ -596,15 +593,13 @@ app.post("/api/lists", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const result = await pool.query(
       `
       INSERT INTO lists (app_user_id, user_id, name, updated_at)
       VALUES ($1, $2, $3, NOW())
       RETURNING id, app_user_id, user_id, name, created_at, updated_at
       `,
-      [req.appUserId, legacySpotifyUserId, name]
+      [req.appUserId, null, name]
     );
 
     return res.status(201).json(result.rows[0]);
@@ -627,16 +622,14 @@ app.patch("/api/lists/:id", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const result = await pool.query(
       `
       UPDATE lists
       SET name = $1, updated_at = NOW()
-      WHERE id = $2 AND ${getOwnerWhereClause(3, 4)}
+      WHERE id = $2 AND app_user_id = $3
       RETURNING id, app_user_id, user_id, name, created_at, updated_at
       `,
-      [name, listId, req.appUserId, legacySpotifyUserId]
+      [name, listId, req.appUserId]
     );
 
     if (result.rows.length === 0) {
@@ -658,15 +651,13 @@ app.delete("/api/lists/:id", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const result = await pool.query(
       `
       DELETE FROM lists
-      WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}
+      WHERE id = $1 AND app_user_id = $2
       RETURNING id
       `,
-      [listId, req.appUserId, legacySpotifyUserId]
+      [listId, req.appUserId]
     );
 
     if (result.rows.length === 0) {
@@ -697,11 +688,9 @@ app.post("/api/lists/:id/items", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const ownerResult = await pool.query(
-      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
-      [listId, req.appUserId, legacySpotifyUserId]
+      "SELECT id FROM lists WHERE id = $1 AND app_user_id = $2",
+      [listId, req.appUserId]
     );
 
     if (ownerResult.rows.length === 0) {
@@ -753,11 +742,9 @@ app.delete("/api/lists/:id/items/:itemId", requireAuth, async (req, res) => {
   }
 
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const ownerResult = await pool.query(
-      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
-      [listId, req.appUserId, legacySpotifyUserId]
+      "SELECT id FROM lists WHERE id = $1 AND app_user_id = $2",
+      [listId, req.appUserId]
     );
 
     if (ownerResult.rows.length === 0) {
@@ -824,25 +811,24 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "ordered_item_ids must be a non-empty array" });
   }
 
+  const client = await pool.connect();
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
-    const ownerResult = await pool.query(
-      `SELECT id FROM lists WHERE id = $1 AND ${getOwnerWhereClause(2, 3)}`,
-      [listId, req.appUserId, legacySpotifyUserId]
+    const ownerResult = await client.query(
+      "SELECT id FROM lists WHERE id = $1 AND app_user_id = $2",
+      [listId, req.appUserId]
     );
 
     if (ownerResult.rows.length === 0) {
       return res.status(403).json({ error: "You do not have access to this list" });
     }
 
-    await pool.query("BEGIN");
+    await client.query("BEGIN");
 
     for (let i = 0; i < ordered_item_ids.length; i += 1) {
       const itemId = Number(ordered_item_ids[i]);
       if (Number.isNaN(itemId)) continue;
 
-      await pool.query(
+      await client.query(
         `
         UPDATE list_items
         SET position = $1
@@ -852,11 +838,10 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
       );
     }
 
-    await pool.query("UPDATE lists SET updated_at = NOW() WHERE id = $1", [listId]);
+    await client.query("UPDATE lists SET updated_at = NOW() WHERE id = $1", [listId]);
+    await client.query("COMMIT");
 
-    await pool.query("COMMIT");
-
-    const itemsResult = await pool.query(
+    const itemsResult = await client.query(
       `
       SELECT
         id, list_id, item_type, item_id, item_name, item_subtitle, image_url, position, added_at
@@ -869,24 +854,24 @@ app.patch("/api/lists/:id/items/reorder", requireAuth, async (req, res) => {
 
     return res.json({ items: itemsResult.rows });
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => {});
     console.error("reorder list items error", error);
     return res.status(500).json({ error: "Failed to reorder list items" });
+  } finally {
+    client.release();
   }
 });
 
 app.get("/api/lists", requireAuth, async (req, res) => {
   try {
-    const legacySpotifyUserId = await getLegacySpotifyUserId(req.appUserId);
-
     const listsResult = await pool.query(
       `
       SELECT id, app_user_id, user_id, name, created_at, updated_at
       FROM lists
-      WHERE ${getOwnerWhereClause(1, 2)}
+      WHERE app_user_id = $1
       ORDER BY updated_at DESC, created_at DESC
       `,
-      [req.appUserId, legacySpotifyUserId]
+      [req.appUserId]
     );
 
     const listIds = listsResult.rows.map((list) => list.id);

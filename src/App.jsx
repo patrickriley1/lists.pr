@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -30,12 +30,19 @@ function App() {
   const [userLists, setUserLists] = useState([]);
   const [reviewByKey, setReviewByKey] = useState({});
   const [reviewEntries, setReviewEntries] = useState([]);
+  const spotifyTokenCacheRef = useRef({ accessToken: "", expiresAtMs: 0 });
 
   const canUseApp = Boolean(authToken);
 
-  function getAuthHeaders() {
-    if (!authToken) return {};
-    return { Authorization: `Bearer ${authToken}` };
+  function withAuthHeaders(headers = {}) {
+    if (!authToken) return headers;
+    return { ...headers, Authorization: `Bearer ${authToken}` };
+  }
+
+  function sortListsByRecency(lists) {
+    return [...lists].sort(
+      (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+    );
   }
 
   function clearAuthState() {
@@ -44,6 +51,7 @@ function App() {
     setReviewByKey({});
     setReviewEntries([]);
     setUserLists([]);
+    spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
   }
@@ -88,12 +96,14 @@ function App() {
 
   async function getSpotifyAccessToken() {
     if (!authToken) return null;
+    const cached = spotifyTokenCacheRef.current;
+    if (cached.accessToken && Date.now() < cached.expiresAtMs - 30_000) {
+      return cached.accessToken;
+    }
 
     try {
       const response = await fetch(`${apiBaseURL}/api/spotify/token`, {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: withAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -101,7 +111,16 @@ function App() {
       }
 
       const data = await response.json();
-      return data.access_token || null;
+      if (!data.access_token) {
+        return null;
+      }
+
+      const expiresInSeconds = Number(data.expires_in || 3600);
+      spotifyTokenCacheRef.current = {
+        accessToken: data.access_token,
+        expiresAtMs: Date.now() + expiresInSeconds * 1000,
+      };
+      return data.access_token;
     } catch {
       return null;
     }
@@ -111,20 +130,35 @@ function App() {
     const accessToken = await getSpotifyAccessToken();
     if (!accessToken) return null;
 
-    return fetch(`https://api.spotify.com/v1${path}`, {
+    let response = await fetch(`https://api.spotify.com/v1${path}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
     });
+
+    if (response.status !== 401) {
+      return response;
+    }
+
+    // Clear cache and retry once if Spotify token has expired unexpectedly.
+    spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
+    const nextToken = await getSpotifyAccessToken();
+    if (!nextToken) return null;
+
+    response = await fetch(`https://api.spotify.com/v1${path}`, {
+      headers: {
+        Authorization: `Bearer ${nextToken}`,
+      },
+    });
+
+    return response;
   }
 
   useEffect(() => {
     if (!authToken) return;
 
     fetch(`${apiBaseURL}/api/auth/me`, {
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: withAuthHeaders(),
     })
       .then((res) => {
         if (!res.ok) {
@@ -146,14 +180,10 @@ function App() {
 
     Promise.all([
       fetch(`${apiBaseURL}/api/ratings`, {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: withAuthHeaders(),
       }),
       fetch(`${apiBaseURL}/api/lists`, {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: withAuthHeaders(),
       }),
     ])
       .then(async ([ratingsRes, listsRes]) => {
@@ -186,7 +216,7 @@ function App() {
           })),
         }));
 
-        setUserLists(normalizedLists);
+        setUserLists(sortListsByRecency(normalizedLists));
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -203,8 +233,7 @@ function App() {
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}`, {
       method: "PATCH",
       headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...withAuthHeaders({ "Content-Type": "application/json" }),
       },
       body: JSON.stringify({ name }),
     });
@@ -213,9 +242,9 @@ function App() {
 
     const updated = await response.json();
     setUserLists((prev) =>
-      prev
-        .map((entry) => (entry.id === listId ? { ...entry, name: updated.name, updated_at: updated.updated_at } : entry))
-        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      sortListsByRecency(
+        prev.map((entry) => (entry.id === listId ? { ...entry, name: updated.name, updated_at: updated.updated_at } : entry))
+      )
     );
   }
 
@@ -225,9 +254,7 @@ function App() {
 
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}`, {
       method: "DELETE",
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: withAuthHeaders(),
     });
 
     if (!response.ok) return;
@@ -244,8 +271,7 @@ function App() {
     const response = await fetch(`${apiBaseURL}/api/lists`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...withAuthHeaders({ "Content-Type": "application/json" }),
       },
       body: JSON.stringify({ name }),
     });
@@ -257,11 +283,7 @@ function App() {
     const list = await response.json();
     const normalizedList = { ...list, items: [] };
 
-    setUserLists((prev) =>
-      [...prev, normalizedList].sort(
-        (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
-      )
-    );
+    setUserLists((prev) => sortListsByRecency([...prev, normalizedList]));
 
     return normalizedList;
   }
@@ -272,8 +294,7 @@ function App() {
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
+        ...withAuthHeaders({ "Content-Type": "application/json" }),
       },
       body: JSON.stringify(payload),
     });
@@ -285,8 +306,8 @@ function App() {
     const savedItem = await response.json();
 
     setUserLists((prev) =>
-      prev
-        .map((list) => {
+      sortListsByRecency(
+        prev.map((list) => {
           if (list.id !== listId) return list;
 
           const exists = (list.items || []).some(
@@ -310,17 +331,14 @@ function App() {
             items: [...(list.items || []), savedItem],
           };
         })
-        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      )
     );
   }
 
   async function reorderListItems(listId, orderedItemIds) {
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items/reorder`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ ordered_item_ids: orderedItemIds }),
     });
 
@@ -331,20 +349,18 @@ function App() {
     const data = await response.json();
 
     setUserLists((prev) =>
-      prev
-        .map((list) =>
+      sortListsByRecency(
+        prev.map((list) =>
           list.id === listId ? { ...list, items: data.items || [], updated_at: new Date().toISOString() } : list
         )
-        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      )
     );
   }
 
   async function removeItemFromList(listId, listItemId) {
     const response = await fetch(`${apiBaseURL}/api/lists/${listId}/items/${listItemId}`, {
       method: "DELETE",
-      headers: {
-        ...getAuthHeaders(),
-      },
+      headers: withAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -354,11 +370,11 @@ function App() {
     const data = await response.json();
 
     setUserLists((prev) =>
-      prev
-        .map((list) =>
+      sortListsByRecency(
+        prev.map((list) =>
           list.id === listId ? { ...list, items: data.items || [], updated_at: new Date().toISOString() } : list
         )
-        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0))
+      )
     );
   }
 
@@ -367,10 +383,7 @@ function App() {
 
     const response = await fetch(`${apiBaseURL}/api/ratings`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
 

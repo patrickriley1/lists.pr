@@ -725,11 +725,11 @@ function App() {
           <Link className={location.pathname === "/search" ? "navLink active" : "navLink"} to="/search">
             Search
           </Link>
-          <Link className={location.pathname === "/library" ? "navLink active" : "navLink"} to="/library">
-            Library
-          </Link>
           <Link className={location.pathname === "/charts" ? "navLink active" : "navLink"} to="/charts">
             Charts
+          </Link>
+          <Link className={location.pathname === "/library" ? "navLink active" : "navLink"} to="/library">
+            Library
           </Link>
         </nav>
 

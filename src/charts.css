@@ -41,6 +41,11 @@
   padding: 8px;
 }
 
+.chartRow:hover {
+  background: #1a1a1a;
+  cursor: pointer;
+}
+
 .chartRank {
   color: #d0d0d0;
   text-align: right;

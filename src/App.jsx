@@ -669,12 +669,18 @@ function App() {
       );
     }
 
+    const feedEntriesWithReviewText = (feedEntries || []).filter((entry) => {
+      const hasTitle = typeof entry.review_title === "string" && entry.review_title.trim().length > 0;
+      const hasBody = typeof entry.review_body === "string" && entry.review_body.trim().length > 0;
+      return hasTitle && hasBody;
+    });
+
     return (
       <div className="pageSection">
         <h2 className="pageTitle">Home</h2>
         <div className="feedList">
-          {feedEntries.length === 0 ? <p>No reviews yet.</p> : null}
-          {feedEntries.map((entry) => (
+          {feedEntriesWithReviewText.length === 0 ? <p>No reviews yet.</p> : null}
+          {feedEntriesWithReviewText.map((entry) => (
             <div key={entry.id} className="feedCard">
               {entry.image_url ? (
                 <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="feedImage" />

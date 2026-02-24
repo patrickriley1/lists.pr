@@ -36,6 +36,7 @@ function App() {
   const [listenLaterItems, setListenLaterItems] = useState([]);
   const [feedEntries, setFeedEntries] = useState([]);
   const [publicLists, setPublicLists] = useState([]);
+  const [expandedHomeListIds, setExpandedHomeListIds] = useState({});
   const [reviewEditor, setReviewEditor] = useState({ open: false, payload: null });
   const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
   const [reviewEditorError, setReviewEditorError] = useState("");
@@ -64,6 +65,7 @@ function App() {
     setListenLaterItems([]);
     setFeedEntries([]);
     setPublicLists([]);
+    setExpandedHomeListIds({});
     setReviewEditor({ open: false, payload: null });
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
@@ -699,7 +701,13 @@ function App() {
         <h2 className="pageTitle">Home</h2>
         <div className="feedList">
           {combinedHomeFeed.length === 0 ? <p>No activity yet.</p> : null}
-          {combinedHomeFeed.map((entry) => (
+          {combinedHomeFeed.map((entry) => {
+            const isListEntry = entry.activity_type === "list";
+            const listItems = isListEntry ? entry.items || [] : [];
+            const isListExpanded = isListEntry ? Boolean(expandedHomeListIds[entry.id]) : false;
+            const visibleListItems = isListEntry ? (isListExpanded ? listItems : listItems.slice(0, 8)) : [];
+
+            return (
             <div key={`${entry.activity_type}:${entry.id}`} className="feedCard">
               {entry.activity_type === "review" ? (
                 <>
@@ -743,20 +751,39 @@ function App() {
                     <p className="listFeedMeta">{Number(entry.item_count || 0)} items</p>
                   </div>
                   <p className="feedItemName">{entry.name || "Untitled List"}</p>
-                  <div className="listFeedPreview">
-                    {[0, 1, 2, 3].map((slot) => {
-                      const item = entry.preview_items?.[slot];
-                      return item?.image_url ? (
-                        <img key={slot} src={item.image_url} alt={item.item_name || "List item"} />
+                  <div
+                    className={`listFeedPreview ${isListExpanded ? "expanded" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      setExpandedHomeListIds((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      setExpandedHomeListIds((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }));
+                    }}
+                  >
+                    {visibleListItems.map((item, index) =>
+                      item?.image_url ? (
+                        <img
+                          key={`${entry.id}-${item.item_name || "item"}-${index}`}
+                          src={item.image_url}
+                          alt={item.item_name || "List item"}
+                        />
                       ) : (
-                        <div key={slot} className="listFeedPreviewPlaceholder" />
-                      );
-                    })}
+                        <div key={`${entry.id}-placeholder-${index}`} className="listFeedPreviewPlaceholder" />
+                      )
+                    )}
                   </div>
+                  {listItems.length > 8 ? (
+                    <p className="listFeedToggleText">{isListExpanded ? "Show less" : "Show full list"}</p>
+                  ) : null}
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );

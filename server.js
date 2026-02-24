@@ -1361,16 +1361,14 @@ app.get("/api/lists/discover", requireAuth, async (req, res) => {
       [listIds]
     );
 
-    const previewByListId = itemsResult.rows.reduce((acc, item) => {
+    const itemsByListId = itemsResult.rows.reduce((acc, item) => {
       if (!acc[item.list_id]) {
         acc[item.list_id] = [];
       }
-      if (acc[item.list_id].length < 4) {
-        acc[item.list_id].push({
-          item_name: item.item_name,
-          image_url: item.image_url,
-        });
-      }
+      acc[item.list_id].push({
+        item_name: item.item_name,
+        image_url: item.image_url,
+      });
       return acc;
     }, {});
 
@@ -1378,7 +1376,8 @@ app.get("/api/lists/discover", requireAuth, async (req, res) => {
       listsResult.rows.map((list) => ({
         ...list,
         item_count: Number(list.item_count || 0),
-        preview_items: previewByListId[list.id] || [],
+        preview_items: (itemsByListId[list.id] || []).slice(0, 8),
+        items: itemsByListId[list.id] || [],
       }))
     );
   } catch (error) {

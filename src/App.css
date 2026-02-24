@@ -282,15 +282,73 @@
 
 .listFeedPreview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 6px;
   cursor: pointer;
 }
 
-.listFeedToggleText {
-  margin: 0;
+.listFeedToggleButton {
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  background: transparent;
   color: #cfcfcf;
   font-size: 0.85rem;
+}
+
+.listFeedToggleButton:hover {
+  border-color: var(--primary);
+}
+
+.homeListExpandedGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.homeListExpandedItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.homeListExpandedPosition {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid #2f2f2f;
+  color: var(--light);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.homeListExpandedImage {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #2a2a2a;
+}
+
+.homeListExpandedImage.placeholder {
+  background: #161616;
+  border: 1px dashed #2f2f2f;
+}
+
+.homeListExpandedName {
+  margin: 0;
+  color: var(--light);
+  text-align: center;
 }
 
 .listFeedPreview img,
@@ -449,6 +507,10 @@
   .feedImage {
     width: 56px;
     height: 56px;
+  }
+
+  .homeListExpandedGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .reviewDotsRow {

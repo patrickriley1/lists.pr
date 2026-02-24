@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import "./charts.css";
 
 function ChartsPage({ canUseApp, getCharts }) {
+  const navigate = useNavigate();
   const [chartType, setChartType] = useState("album");
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -69,7 +70,7 @@ function ChartsPage({ canUseApp, getCharts }) {
             <div key={`${entry.item_type}:${entry.item_id}`} className="chartRow" 
               onClick={() => {
                 if (entry.item_type === "album") {
-                  Navigate(`/album/${entry.item_id}`);
+                  navigate(`/album/${entry.item_id}`);
                 }
               }}
             >

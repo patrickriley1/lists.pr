@@ -69,7 +69,7 @@ function ChartsPage({ canUseApp, getCharts }) {
             <div key={`${entry.item_type}:${entry.item_id}`} className="chartRow" 
               onClick={() => {
                 if (entry.item_type === "album") {
-                  navigate(`/album/${entry.item_id}`);
+                  Navigate(`/album/${entry.item_id}`);
                 }
               }}
             >

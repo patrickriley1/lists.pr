@@ -44,7 +44,24 @@ function UserPage({ canUseApp, getUserProfile }) {
 
   return (
     <div className="userPage">
-      <h2 className="pageTitle">{username}</h2>
+      {!loading && !error && profile ? (
+        <div className="userHeader">
+          {profile.user?.profile_image_url ? (
+            <img
+              src={profile.user.profile_image_url}
+              alt={profile.user.username || username}
+              className="userProfileAvatar"
+            />
+          ) : (
+            <div className="userProfileAvatar placeholder">
+              {(profile.user?.username || username)?.[0]?.toUpperCase() || "U"}
+            </div>
+          )}
+          <h2 className="pageTitle">{profile.user?.username || username}</h2>
+        </div>
+      ) : (
+        <h2 className="pageTitle">{username}</h2>
+      )}
 
       {loading ? <p>Loading user...</p> : null}
       {error ? <p className="authError">{error}</p> : null}

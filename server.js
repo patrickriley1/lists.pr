@@ -175,6 +175,11 @@ async function ensureCoreTables() {
   `);
 
   await pool.query(`
+    ALTER TABLE app_users
+    ADD COLUMN IF NOT EXISTS profile_image_url TEXT
+  `);
+
+  await pool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_unique_idx
     ON app_users (LOWER(email))
     WHERE email IS NOT NULL
@@ -489,7 +494,7 @@ app.post("/api/auth/register", async (req, res) => {
       `
       INSERT INTO app_users (username, email, password_hash)
       VALUES ($1, $2, $3)
-      RETURNING id, username, email, created_at
+      RETURNING id, username, email, profile_image_url, created_at
       `,
       [username, email, passwordHash]
     );
@@ -523,7 +528,7 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, email, password_hash, created_at
+      SELECT id, username, email, profile_image_url, password_hash, created_at
       FROM app_users
       WHERE username = $1
       `,
@@ -542,6 +547,7 @@ app.post("/api/auth/login", async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        profile_image_url: user.profile_image_url,
         created_at: user.created_at,
       },
     });
@@ -555,7 +561,7 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, username, email, created_at
+      SELECT id, username, email, profile_image_url, created_at
       FROM app_users
       WHERE id = $1
       `,
@@ -570,6 +576,41 @@ app.get("/api/auth/me", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("auth me error", error);
     return res.status(500).json({ error: "Failed to fetch user" });
+  }
+});
+
+app.patch("/api/auth/me", requireAuth, async (req, res) => {
+  const username = String(req.body.username || "").trim();
+  const profileImageUrl = typeof req.body.profile_image_url === "string" ? req.body.profile_image_url.trim() : "";
+
+  if (username.length < 3) {
+    return res.status(400).json({ error: "Username must be at least 3 characters" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE app_users
+      SET
+        username = $1,
+        profile_image_url = $2
+      WHERE id = $3
+      RETURNING id, username, email, profile_image_url, created_at
+      `,
+      [username, profileImageUrl || null, req.appUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ error: "Username already exists" });
+    }
+    console.error("update auth profile error", error);
+    return res.status(500).json({ error: "Failed to update profile settings" });
   }
 });
 
@@ -623,6 +664,7 @@ app.get("/api/feed", requireAuth, async (req, res) => {
         r.created_at,
         r.updated_at,
         au.username,
+        au.profile_image_url AS user_profile_image_url,
         COALESCE(lc.like_count, 0)::INT AS like_count,
         EXISTS (
           SELECT 1
@@ -727,6 +769,7 @@ app.get("/api/users/search", requireAuth, async (req, res) => {
     const result = await pool.query(
       `
       SELECT id, username
+        , profile_image_url
       FROM app_users
       WHERE LOWER(username) LIKE LOWER($1)
       ORDER BY username ASC
@@ -751,7 +794,7 @@ app.get("/api/users/:username/profile", requireAuth, async (req, res) => {
   try {
     const userResult = await pool.query(
       `
-      SELECT id, username, created_at
+      SELECT id, username, profile_image_url, created_at
       FROM app_users
       WHERE LOWER(username) = LOWER($1)
       LIMIT 1
@@ -1329,12 +1372,13 @@ app.get("/api/lists/discover", requireAuth, async (req, res) => {
         l.updated_at,
         l.app_user_id,
         au.username,
+        au.profile_image_url AS user_profile_image_url,
         COUNT(li.id)::INT AS item_count
       FROM lists l
       JOIN app_users au ON au.id = l.app_user_id
       LEFT JOIN list_items li ON li.list_id = l.id
       WHERE l.app_user_id IS NOT NULL
-      GROUP BY l.id, au.username
+      GROUP BY l.id, au.username, au.profile_image_url
       ORDER BY l.updated_at DESC, l.created_at DESC
       LIMIT $1
       `,

@@ -6,6 +6,30 @@
   gap: 14px;
 }
 
+.userHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.userProfileAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.userProfileAvatar.placeholder {
+  background: #171717;
+  border: 1px dashed #2f2f2f;
+  color: var(--light);
+  font-weight: 700;
+}
+
 .userGrid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr);

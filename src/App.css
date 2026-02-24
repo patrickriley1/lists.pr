@@ -32,6 +32,31 @@
   top: 30px;
 }
 
+.userMenuTrigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menuUserAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menuUserAvatar.placeholder {
+  background: #171717;
+  border: 1px dashed #2f2f2f;
+  color: var(--light);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .userHoverMenu {
   display: none;
   flex-direction: column;
@@ -41,7 +66,7 @@
   border: 1px solid #2a2a2a;
   border-radius: 8px;
   padding: 8px;
-  width: 150px;
+  width: 170px;
 }
 
 .userMenuTopRight:hover .userHoverMenu {
@@ -218,6 +243,30 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+}
+
+.feedAuthor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feedUserAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.feedUserAvatar.placeholder {
+  background: #171717;
+  border: 1px dashed #2f2f2f;
 }
 
 .feedHeaderRight {

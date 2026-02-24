@@ -7,7 +7,16 @@ import LibraryPage from "./library";
 import AlbumPage from "./album";
 import UserPage from "./user";
 import ChartsPage from "./charts";
+import SettingsPage from "./settings";
 import "./App.css";
+
+function UserAvatar({ imageUrl, name, className }) {
+  if (imageUrl) {
+    return <img src={imageUrl} alt={name || "User"} className={className} />;
+  }
+
+  return <div className={`${className} placeholder`}>{name?.[0]?.toUpperCase() || "U"}</div>;
+}
 
 function App() {
   const apiBaseURL = import.meta.env.VITE_API_URL || "http://localhost:4000";
@@ -591,6 +600,43 @@ function App() {
     return response.json();
   }
 
+  async function updateCurrentUserProfile({ username, profileImageUrl }) {
+    const response = await fetch(`${apiBaseURL}/api/auth/me`, {
+      method: "PATCH",
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        username,
+        profile_image_url: profileImageUrl || null,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to update profile settings");
+    }
+
+    setAuthUser(data);
+    localStorage.setItem("app_auth_user", JSON.stringify(data));
+
+    setFeedEntries((prev) =>
+      prev.map((entry) =>
+        entry.app_user_id === data.id
+          ? { ...entry, username: data.username, user_profile_image_url: data.profile_image_url || null }
+          : entry
+      )
+    );
+
+    setPublicLists((prev) =>
+      prev.map((entry) =>
+        entry.app_user_id === data.id
+          ? { ...entry, username: data.username, user_profile_image_url: data.profile_image_url || null }
+          : entry
+      )
+    );
+
+    return data;
+  }
+
   async function toggleFeedLike(reviewId, currentlyLiked) {
     const response = await fetch(`${apiBaseURL}/api/feed/reviews/${reviewId}/like`, {
       method: currentlyLiked ? "DELETE" : "POST",
@@ -718,9 +764,16 @@ function App() {
                   )}
                   <div className="feedBody">
                     <div className="feedHeaderRow">
-                      <Link className="feedUsername" to={`/user/${entry.username}`}>
-                        {entry.username}
-                      </Link>
+                      <div className="feedAuthor">
+                        <UserAvatar
+                          imageUrl={entry.user_profile_image_url}
+                          name={entry.username}
+                          className="feedUserAvatar"
+                        />
+                        <Link className="feedUsername" to={`/user/${entry.username}`}>
+                          {entry.username}
+                        </Link>
+                      </div>
                       <div className="feedHeaderRight">
                         <p className="feedRating">{entry.rating}/10</p>
                         <button
@@ -745,9 +798,16 @@ function App() {
               ) : (
                 <div className="feedBody listFeedBody">
                   <div className="feedHeaderRow">
-                    <Link className="feedUsername" to={`/user/${entry.username}`}>
-                      {entry.username}
-                    </Link>
+                    <div className="feedAuthor">
+                      <UserAvatar
+                        imageUrl={entry.user_profile_image_url}
+                        name={entry.username}
+                        className="feedUserAvatar"
+                      />
+                      <Link className="feedUsername" to={`/user/${entry.username}`}>
+                        {entry.username}
+                      </Link>
+                    </div>
                     <p className="listFeedMeta">{Number(entry.item_count || 0)} items</p>
                   </div>
                   <p className="feedItemName">{entry.name || "Untitled List"}</p>
@@ -835,8 +895,18 @@ function App() {
 
         {authUser?.username ? (
           <div className="userMenuTopRight">
-            <p className="usernameTopRight">{authUser.username}</p>
+            <div className="userMenuTrigger">
+              <UserAvatar imageUrl={authUser.profile_image_url} name={authUser.username} className="menuUserAvatar" />
+              <p className="usernameTopRight">{authUser.username}</p>
+            </div>
             <div className="userHoverMenu">
+              <button
+                onClick={() => {
+                  navigate("/settings");
+                }}
+              >
+                Profile Settings
+              </button>
               <button
                 onClick={() => {
                   navigate("/library");
@@ -919,6 +989,16 @@ function App() {
               <UserPage
                 canUseApp={canUseApp}
                 getUserProfile={getUserProfile}
+              />
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <SettingsPage
+                canUseApp={canUseApp}
+                authUser={authUser}
+                updateCurrentUserProfile={updateCurrentUserProfile}
               />
             }
           />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import "./album.css";
 
 function AlbumPage({
@@ -20,12 +20,14 @@ function AlbumPage({
   const [error, setError] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [albumAverage, setAlbumAverage] = useState({ average_rating: null, rating_count: 0 });
+  const [trackAverages, setTrackAverages] = useState({});
 
   useEffect(() => {
     if (!canUseApp || !albumId) return;
 
     setLoading(true);
     setError("");
+    setTrackAverages({});
 
     const averageRequest =
       typeof getAverageRating === "function"
@@ -46,6 +48,32 @@ function AlbumPage({
           average_rating: averageData?.average_rating ?? null,
           rating_count: Number(averageData?.rating_count || 0),
         });
+
+        const tracks = data?.tracks?.items || [];
+        if (typeof getAverageRating !== "function" || tracks.length === 0) {
+          setTrackAverages({});
+          return;
+        }
+
+        const trackAverageEntries = await Promise.all(
+          tracks.map(async (track) => {
+            if (!track?.id) return null;
+            try {
+              const trackAverageData = await getAverageRating("track", track.id);
+              return [
+                track.id,
+                {
+                  average_rating: trackAverageData?.average_rating ?? null,
+                  rating_count: Number(trackAverageData?.rating_count || 0),
+                },
+              ];
+            } catch {
+              return [track.id, { average_rating: null, rating_count: 0 }];
+            }
+          })
+        );
+
+        setTrackAverages(Object.fromEntries(trackAverageEntries.filter(Boolean)));
       })
       .catch(() => {
         setError("Could not load album details. Please try again.");
@@ -166,7 +194,30 @@ function AlbumPage({
               <div key={track.id || `${track.name}-${index}`} className="albumTrackRow">
                 <span className="albumTrackNumber">{track.track_number || index + 1}</span>
                 <span className="albumTrackTitle">{track.name}</span>
-                <span className="albumTrackRating" />
+                <div className="albumTrackActions">
+                  <span className="albumTrackAverage">
+                    {trackAverages[track.id]?.rating_count > 0
+                      ? `${trackAverages[track.id].average_rating}/10`
+                      : "No ratings"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!track?.id) return;
+                      openReviewEditor({
+                        item_type: "track",
+                        item_id: track.id,
+                        item_name: track.name,
+                        item_subtitle: track.artists?.map((artist) => artist.name).join(", ") || artists,
+                        image_url: album.images?.[0]?.url || null,
+                      });
+                    }}
+                  >
+                    {reviewByKey?.[`track:${track.id}`]?.rating
+                      ? `Rated: ${reviewByKey[`track:${track.id}`].rating}/10`
+                      : "Rate"}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

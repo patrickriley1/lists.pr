@@ -148,7 +148,7 @@
 
 .albumTrackRow {
   display: grid;
-  grid-template-columns: 48px 1fr 88px;
+  grid-template-columns: 48px 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -171,8 +171,31 @@
   text-overflow: ellipsis;
 }
 
-.albumTrackRating {
-  min-height: 1em;
+.albumTrackActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.albumTrackAverage {
+  color: #d7d7d7;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.albumTrackActions button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+  min-width: 78px;
+}
+
+.albumTrackActions button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
 }
 
 @media (max-width: 768px) {
@@ -203,5 +226,15 @@
 
   .albumCoverLarge {
     width: min(220px, 100%);
+  }
+
+  .albumTrackRow {
+    grid-template-columns: 40px 1fr;
+    row-gap: 8px;
+  }
+
+  .albumTrackActions {
+    grid-column: 2;
+    justify-content: space-between;
   }
 }

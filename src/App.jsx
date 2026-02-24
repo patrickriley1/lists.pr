@@ -681,73 +681,82 @@ function App() {
       const hasBody = typeof entry.review_body === "string" && entry.review_body.trim().length > 0;
       return hasTitle && hasBody;
     });
+    const combinedHomeFeed = [
+      ...(publicLists || []).map((list) => ({
+        activity_type: "list",
+        sort_date: list.updated_at || list.created_at || null,
+        ...list,
+      })),
+      ...feedEntriesWithReviewText.map((entry) => ({
+        activity_type: "review",
+        sort_date: entry.updated_at || entry.created_at || null,
+        ...entry,
+      })),
+    ].sort((a, b) => new Date(b.sort_date || 0) - new Date(a.sort_date || 0));
 
     return (
       <div className="pageSection">
         <h2 className="pageTitle">Home</h2>
-        <h3 className="homeSectionTitle">Recent Lists</h3>
-        <div className="listFeedGrid">
-          {publicLists.length === 0 ? <p>No lists yet.</p> : null}
-          {publicLists.map((list) => (
-            <div key={list.id} className="listFeedCard">
-              <div className="listFeedHeader">
-                <p className="listFeedName">{list.name || "Untitled List"}</p>
-                <Link className="feedUsername" to={`/user/${list.username}`}>
-                  {list.username}
-                </Link>
-              </div>
-              <div className="listFeedPreview">
-                {[0, 1, 2, 3].map((slot) => {
-                  const item = list.preview_items?.[slot];
-                  return item?.image_url ? (
-                    <img key={slot} src={item.image_url} alt={item.item_name || "List item"} />
-                  ) : (
-                    <div key={slot} className="listFeedPreviewPlaceholder" />
-                  );
-                })}
-              </div>
-              <p className="listFeedMeta">{Number(list.item_count || 0)} items</p>
-            </div>
-          ))}
-        </div>
-
-        <h3 className="homeSectionTitle">Recent Reviews</h3>
         <div className="feedList">
-          {feedEntriesWithReviewText.length === 0 ? <p>No reviews yet.</p> : null}
-          {feedEntriesWithReviewText.map((entry) => (
-            <div key={entry.id} className="feedCard">
-              {entry.image_url ? (
-                <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="feedImage" />
+          {combinedHomeFeed.length === 0 ? <p>No activity yet.</p> : null}
+          {combinedHomeFeed.map((entry) => (
+            <div key={`${entry.activity_type}:${entry.id}`} className="feedCard">
+              {entry.activity_type === "review" ? (
+                <>
+                  {entry.image_url ? (
+                    <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="feedImage" />
+                  ) : (
+                    <div className="feedImage placeholder" />
+                  )}
+                  <div className="feedBody">
+                    <div className="feedHeaderRow">
+                      <Link className="feedUsername" to={`/user/${entry.username}`}>
+                        {entry.username}
+                      </Link>
+                      <div className="feedHeaderRight">
+                        <p className="feedRating">{entry.rating}/10</p>
+                        <button
+                          type="button"
+                          className={`feedLikeButton ${entry.liked_by_me ? "active" : ""}`}
+                          onClick={() => {
+                            void toggleFeedLike(entry.id, Boolean(entry.liked_by_me));
+                          }}
+                          aria-label="Like review"
+                        >
+                          <span className="feedLikeIcon">{entry.liked_by_me ? "♥" : "♡"}</span>
+                          <span>{entry.like_count || 0}</span>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
+                    <p>{entry.item_subtitle || ""}</p>
+                    {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
+                    {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
+                  </div>
+                </>
               ) : (
-                <div className="feedImage placeholder" />
-              )}
-                <div className="feedBody">
+                <div className="feedBody listFeedBody">
                   <div className="feedHeaderRow">
                     <Link className="feedUsername" to={`/user/${entry.username}`}>
                       {entry.username}
                     </Link>
-                    <div className="feedHeaderRight">
-                      <p className="feedRating">{entry.rating}/10</p>
-                      <button
-                        type="button"
-                        className={`feedLikeButton ${entry.liked_by_me ? "active" : ""}`}
-                        onClick={() => {
-                          void toggleFeedLike(entry.id, Boolean(entry.liked_by_me));
-                        }}
-                        aria-label="Like review"
-                      >
-                        <span className="feedLikeIcon">{entry.liked_by_me ? "♥" : "♡"}</span>
-                        <span>{entry.like_count || 0}</span>
-                      </button>
-                    </div>
+                    <p className="listFeedMeta">{Number(entry.item_count || 0)} items</p>
                   </div>
-                  <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
-                  <p>{entry.item_subtitle || ""}</p>
-                  {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
-                  {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
+                  <p className="feedItemName">{entry.name || "Untitled List"}</p>
+                  <div className="listFeedPreview">
+                    {[0, 1, 2, 3].map((slot) => {
+                      const item = entry.preview_items?.[slot];
+                      return item?.image_url ? (
+                        <img key={slot} src={item.image_url} alt={item.item_name || "List item"} />
+                      ) : (
+                        <div key={slot} className="listFeedPreviewPlaceholder" />
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
+          ))}
         </div>
       </div>
     );

@@ -66,7 +66,9 @@ function ChartsPage({ canUseApp, getCharts }) {
         <div className="chartList">
           {entries.length === 0 ? <p>No ratings yet for this chart.</p> : null}
           {entries.map((entry, index) => (
-            <div key={`${entry.item_type}:${entry.item_id}`} className="chartRow">
+            <div key={`${entry.item_type}:${entry.item_id}`} className="chartRow" 
+              onClick={() => navigate(`/album/${entry.item_id}`)}
+            >
               <span className="chartRank">{index + 1}</span>
               {entry.image_url ? (
                 <img src={entry.image_url} alt={entry.item_name || "Ranked item"} className="chartImage" />

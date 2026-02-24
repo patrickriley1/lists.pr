@@ -208,13 +208,7 @@ function SearchPage({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={
-            searchType === "track"
-              ? "Search for a song"
-              : searchType === "user"
-                ? "Search for a user"
-                : `Search for a ${searchType}`
-          }
+          placeholder={`Search for a ${searchType}`}
         />
         <button type="submit" disabled={searchLoading}>
           {searchLoading ? "Searching..." : "Search"}

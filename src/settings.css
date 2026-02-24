@@ -22,6 +22,12 @@
   font-size: 0.9rem;
 }
 
+.settingsHint {
+  margin: -4px 0 0 0;
+  color: #a9a9a9;
+  font-size: 0.8rem;
+}
+
 .settingsAvatarPreviewWrap {
   margin-top: 4px;
 }

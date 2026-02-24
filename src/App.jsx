@@ -35,6 +35,7 @@ function App() {
   const [reviewEntries, setReviewEntries] = useState([]);
   const [listenLaterItems, setListenLaterItems] = useState([]);
   const [feedEntries, setFeedEntries] = useState([]);
+  const [publicLists, setPublicLists] = useState([]);
   const [reviewEditor, setReviewEditor] = useState({ open: false, payload: null });
   const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
   const [reviewEditorError, setReviewEditorError] = useState("");
@@ -62,6 +63,7 @@ function App() {
     setUserLists([]);
     setListenLaterItems([]);
     setFeedEntries([]);
+    setPublicLists([]);
     setReviewEditor({ open: false, payload: null });
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
@@ -206,15 +208,19 @@ function App() {
       fetch(`${apiBaseURL}/api/feed?limit=40`, {
         headers: withAuthHeaders(),
       }),
+      fetch(`${apiBaseURL}/api/lists/discover?limit=24`, {
+        headers: withAuthHeaders(),
+      }),
     ])
-      .then(async ([ratingsRes, listsRes, listenLaterRes, feedRes]) => {
+      .then(async ([ratingsRes, listsRes, listenLaterRes, feedRes, publicListsRes]) => {
         const ratingsData = ratingsRes.ok ? await ratingsRes.json() : [];
         const listsData = listsRes.ok ? await listsRes.json() : [];
         const listenLaterData = listenLaterRes.ok ? await listenLaterRes.json() : [];
         const feedData = feedRes.ok ? await feedRes.json() : [];
-        return { ratingsData, listsData, listenLaterData, feedData };
+        const publicListsData = publicListsRes.ok ? await publicListsRes.json() : [];
+        return { ratingsData, listsData, listenLaterData, feedData, publicListsData };
       })
-      .then(({ ratingsData, listsData, listenLaterData, feedData }) => {
+      .then(({ ratingsData, listsData, listenLaterData, feedData, publicListsData }) => {
         setReviewEntries(ratingsData);
 
         const reviewMap = ratingsData.reduce((acc, ratingRow) => {
@@ -242,6 +248,7 @@ function App() {
         setUserLists(sortListsByRecency(normalizedLists));
         setListenLaterItems(listenLaterData);
         setFeedEntries(feedData);
+        setPublicLists(publicListsData);
       })
       .catch((error) => {
         console.error("Failed to hydrate user data", error);
@@ -678,6 +685,33 @@ function App() {
     return (
       <div className="pageSection">
         <h2 className="pageTitle">Home</h2>
+        <h3 className="homeSectionTitle">Recent Lists</h3>
+        <div className="listFeedGrid">
+          {publicLists.length === 0 ? <p>No lists yet.</p> : null}
+          {publicLists.map((list) => (
+            <div key={list.id} className="listFeedCard">
+              <div className="listFeedHeader">
+                <p className="listFeedName">{list.name || "Untitled List"}</p>
+                <Link className="feedUsername" to={`/user/${list.username}`}>
+                  {list.username}
+                </Link>
+              </div>
+              <div className="listFeedPreview">
+                {[0, 1, 2, 3].map((slot) => {
+                  const item = list.preview_items?.[slot];
+                  return item?.image_url ? (
+                    <img key={slot} src={item.image_url} alt={item.item_name || "List item"} />
+                  ) : (
+                    <div key={slot} className="listFeedPreviewPlaceholder" />
+                  );
+                })}
+              </div>
+              <p className="listFeedMeta">{Number(list.item_count || 0)} items</p>
+            </div>
+          ))}
+        </div>
+
+        <h3 className="homeSectionTitle">Recent Reviews</h3>
         <div className="feedList">
           {feedEntriesWithReviewText.length === 0 ? <p>No reviews yet.</p> : null}
           {feedEntriesWithReviewText.map((entry) => (

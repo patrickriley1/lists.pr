@@ -1316,6 +1316,77 @@ app.get("/api/charts", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/lists/discover", requireAuth, async (req, res) => {
+  const limit = Math.min(60, Math.max(1, Number(req.query.limit || 24)));
+
+  try {
+    const listsResult = await pool.query(
+      `
+      SELECT
+        l.id,
+        l.name,
+        l.created_at,
+        l.updated_at,
+        l.app_user_id,
+        au.username,
+        COUNT(li.id)::INT AS item_count
+      FROM lists l
+      JOIN app_users au ON au.id = l.app_user_id
+      LEFT JOIN list_items li ON li.list_id = l.id
+      WHERE l.app_user_id IS NOT NULL
+      GROUP BY l.id, au.username
+      ORDER BY l.updated_at DESC, l.created_at DESC
+      LIMIT $1
+      `,
+      [limit]
+    );
+
+    const listIds = listsResult.rows.map((list) => list.id);
+    if (listIds.length === 0) {
+      return res.json([]);
+    }
+
+    const itemsResult = await pool.query(
+      `
+      SELECT
+        list_id,
+        item_name,
+        image_url,
+        position,
+        added_at
+      FROM list_items
+      WHERE list_id = ANY($1::int[])
+      ORDER BY position ASC, added_at ASC
+      `,
+      [listIds]
+    );
+
+    const previewByListId = itemsResult.rows.reduce((acc, item) => {
+      if (!acc[item.list_id]) {
+        acc[item.list_id] = [];
+      }
+      if (acc[item.list_id].length < 4) {
+        acc[item.list_id].push({
+          item_name: item.item_name,
+          image_url: item.image_url,
+        });
+      }
+      return acc;
+    }, {});
+
+    return res.json(
+      listsResult.rows.map((list) => ({
+        ...list,
+        item_count: Number(list.item_count || 0),
+        preview_items: previewByListId[list.id] || [],
+      }))
+    );
+  } catch (error) {
+    console.error("discover lists error", error);
+    return res.status(500).json({ error: "Failed to fetch recent lists" });
+  }
+});
+
 app.get("/api/lists", requireAuth, async (req, res) => {
   try {
     const listsResult = await pool.query(

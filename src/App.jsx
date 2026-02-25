@@ -903,24 +903,11 @@ function App() {
                     >
                       {visibleListItems.map((item, index) =>
                         item?.image_url ? (
-                          item.item_type === "album" || item.item_type === "artist" ? (
-                            <Link
-                              key={`${entry.id}-${item.item_name || "item"}-${index}`}
-                              to={`/${item.item_type}/${item.item_id}`}
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <img
-                                src={item.image_url}
-                                alt={item.item_name || "List item"}
-                              />
-                            </Link>
-                          ) : (
-                            <img
-                              key={`${entry.id}-${item.item_name || "item"}-${index}`}
-                              src={item.image_url}
-                              alt={item.item_name || "List item"}
-                            />
-                          )
+                          <img
+                            key={`${entry.id}-${item.item_name || "item"}-${index}`}
+                            src={item.image_url}
+                            alt={item.item_name || "List item"}
+                          />
                         ) : (
                           <div key={`${entry.id}-placeholder-${index}`} className="listFeedPreviewPlaceholder" />
                         )
@@ -947,7 +934,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  {listItems.length > 8 ? (
+                  {isListExpanded || listItems.length > 8 ? (
                     <button
                       type="button"
                       className="listFeedToggleButton"
@@ -955,7 +942,7 @@ function App() {
                         setExpandedHomeListIds((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }));
                       }}
                     >
-                      {isListExpanded ? "Show less" : "Show full list"}
+                      {isListExpanded ? "Show preview" : "Show full list"}
                     </button>
                   ) : null}
                 </div>

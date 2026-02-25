@@ -98,13 +98,7 @@ function UserPage({ canUseApp, getUserProfile }) {
                       {[0, 1, 2, 3].map((slot) => {
                         const item = previewItems[slot];
                         return item?.image_url ? (
-                          item.item_type === "album" || item.item_type === "artist" ? (
-                            <Link key={slot} to={`/${item.item_type}/${item.item_id}`} onClick={(event) => event.stopPropagation()}>
-                              <img src={item.image_url} alt={item.item_name} />
-                            </Link>
-                          ) : (
-                            <img key={slot} src={item.image_url} alt={item.item_name} />
-                          )
+                          <img key={slot} src={item.image_url} alt={item.item_name} />
                         ) : (
                           <div key={slot} className="userPreviewPlaceholder" />
                         );

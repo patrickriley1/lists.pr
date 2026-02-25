@@ -329,26 +329,12 @@ function LibraryPage({
                             {[0, 1, 2, 3].map((slot) => {
                               const previewItem = previewItems[slot];
                               return previewItem?.image_url ? (
-                                previewItem.item_type === "album" || previewItem.item_type === "artist" ? (
-                                  <Link
-                                    key={slot}
-                                    to={`/${previewItem.item_type}/${previewItem.item_id}`}
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    <img
-                                      src={previewItem.image_url}
-                                      alt={previewItem.item_name}
-                                      draggable={false}
-                                    />
-                                  </Link>
-                                ) : (
-                                  <img
-                                    key={slot}
-                                    src={previewItem.image_url}
-                                    alt={previewItem.item_name}
-                                    draggable={false}
-                                  />
-                                )
+                                <img
+                                  key={slot}
+                                  src={previewItem.image_url}
+                                  alt={previewItem.item_name}
+                                  draggable={false}
+                                />
                               ) : (
                                 <div key={slot} className="previewPlaceholder" />
                               );

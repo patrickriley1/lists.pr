@@ -243,7 +243,17 @@ function SearchPage({
               <div className="resultTopRow">
                 <div className="resultMain">
                   {isUser ? (
-                    <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                    item.profile_image_url ? (
+                      <img
+                        src={item.profile_image_url}
+                        alt={item.username || "User"}
+                        className="resultUserAvatar resultUserAvatarImage"
+                        width="80"
+                        height="80"
+                      />
+                    ) : (
+                      <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                    )
                   ) : (
                     <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
                   )}

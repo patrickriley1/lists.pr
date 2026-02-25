@@ -138,6 +138,11 @@
   background: #151515;
 }
 
+.resultUserAvatarImage {
+  display: block;
+  object-fit: cover;
+}
+
 .resultActionsRow {
   display: flex;
   align-items: center;

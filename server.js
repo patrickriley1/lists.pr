@@ -1423,6 +1423,8 @@ app.get("/api/lists/discover", requireAuth, async (req, res) => {
       `
       SELECT
         list_id,
+        item_type,
+        item_id,
         item_name,
         image_url,
         position,
@@ -1439,6 +1441,8 @@ app.get("/api/lists/discover", requireAuth, async (req, res) => {
         acc[item.list_id] = [];
       }
       acc[item.list_id].push({
+        item_type: item.item_type,
+        item_id: item.item_id,
         item_name: item.item_name,
         image_url: item.image_url,
       });

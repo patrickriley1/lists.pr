@@ -903,11 +903,24 @@ function App() {
                     >
                       {visibleListItems.map((item, index) =>
                         item?.image_url ? (
-                          <img
-                            key={`${entry.id}-${item.item_name || "item"}-${index}`}
-                            src={item.image_url}
-                            alt={item.item_name || "List item"}
-                          />
+                          item.item_type === "album" || item.item_type === "artist" ? (
+                            <Link
+                              key={`${entry.id}-${item.item_name || "item"}-${index}`}
+                              to={`/${item.item_type}/${item.item_id}`}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <img
+                                src={item.image_url}
+                                alt={item.item_name || "List item"}
+                              />
+                            </Link>
+                          ) : (
+                            <img
+                              key={`${entry.id}-${item.item_name || "item"}-${index}`}
+                              src={item.image_url}
+                              alt={item.item_name || "List item"}
+                            />
+                          )
                         ) : (
                           <div key={`${entry.id}-placeholder-${index}`} className="listFeedPreviewPlaceholder" />
                         )
@@ -919,7 +932,13 @@ function App() {
                         <div key={`${entry.id}-expanded-${item.item_name || "item"}-${index}`} className="homeListExpandedItem">
                           <span className="homeListExpandedPosition">{index + 1}</span>
                           {item?.image_url ? (
-                            <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                            item.item_type === "album" || item.item_type === "artist" ? (
+                              <Link to={`/${item.item_type}/${item.item_id}`}>
+                                <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                              </Link>
+                            ) : (
+                              <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                            )
                           ) : (
                             <div className="homeListExpandedImage placeholder" />
                           )}

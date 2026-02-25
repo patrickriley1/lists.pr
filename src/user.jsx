@@ -79,11 +79,17 @@ function UserPage({ canUseApp, getUserProfile }) {
                   .slice(0, 4);
 
                 return (
-                  <button
+                  <div
                     key={list.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className={`userListCard ${activeListId === list.id ? "active" : ""}`}
                     onClick={() => {
+                      setActiveListId((prev) => (prev === list.id ? null : list.id));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
                       setActiveListId((prev) => (prev === list.id ? null : list.id));
                     }}
                   >
@@ -92,13 +98,19 @@ function UserPage({ canUseApp, getUserProfile }) {
                       {[0, 1, 2, 3].map((slot) => {
                         const item = previewItems[slot];
                         return item?.image_url ? (
-                          <img key={slot} src={item.image_url} alt={item.item_name} />
+                          item.item_type === "album" || item.item_type === "artist" ? (
+                            <Link key={slot} to={`/${item.item_type}/${item.item_id}`} onClick={(event) => event.stopPropagation()}>
+                              <img src={item.image_url} alt={item.item_name} />
+                            </Link>
+                          ) : (
+                            <img key={slot} src={item.image_url} alt={item.item_name} />
+                          )
                         ) : (
                           <div key={slot} className="userPreviewPlaceholder" />
                         );
                       })}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -112,7 +124,17 @@ function UserPage({ canUseApp, getUserProfile }) {
                     .map((item, index) => (
                       <div key={item.id} className="userActiveItem">
                         <span>{index + 1}</span>
-                        {item.image_url ? <img src={item.image_url} alt={item.item_name} /> : <div className="userItemPlaceholder" />}
+                        {item.image_url ? (
+                          item.item_type === "album" || item.item_type === "artist" ? (
+                            <Link to={`/${item.item_type}/${item.item_id}`}>
+                              <img src={item.image_url} alt={item.item_name} />
+                            </Link>
+                          ) : (
+                            <img src={item.image_url} alt={item.item_name} />
+                          )
+                        ) : (
+                          <div className="userItemPlaceholder" />
+                        )}
                         <p>
                           {item.item_type === "artist" ? (
                             <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>

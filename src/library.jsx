@@ -249,12 +249,23 @@ function LibraryPage({
                   <div key={item.id} className="myListItem listItemCard readonly">
                     <span className="listItemPosition">{index + 1}</span>
                     {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.item_name}
-                        className="listItemImage"
-                        draggable={false}
-                      />
+                      item.item_type === "album" || item.item_type === "artist" ? (
+                        <Link to={`/${item.item_type}/${item.item_id}`}>
+                          <img
+                            src={item.image_url}
+                            alt={item.item_name}
+                            className="listItemImage"
+                            draggable={false}
+                          />
+                        </Link>
+                      ) : (
+                        <img
+                          src={item.image_url}
+                          alt={item.item_name}
+                          className="listItemImage"
+                          draggable={false}
+                        />
+                      )
                     ) : (
                       <div className="listItemImage placeholder" />
                     )}
@@ -297,13 +308,19 @@ function LibraryPage({
                         .slice(0, 4);
 
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={list.id}
+                          role="button"
+                          tabIndex={0}
                           className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
                           onClick={() =>
                             list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id)
                           }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id);
+                          }}
                         >
                           <div className="listPreviewHeader">
                             <p className="listPreviewTitle">{list.name}</p>
@@ -312,18 +329,32 @@ function LibraryPage({
                             {[0, 1, 2, 3].map((slot) => {
                               const previewItem = previewItems[slot];
                               return previewItem?.image_url ? (
-                                <img
-                                  key={slot}
-                                  src={previewItem.image_url}
-                                  alt={previewItem.item_name}
-                                  draggable={false}
-                                />
+                                previewItem.item_type === "album" || previewItem.item_type === "artist" ? (
+                                  <Link
+                                    key={slot}
+                                    to={`/${previewItem.item_type}/${previewItem.item_id}`}
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <img
+                                      src={previewItem.image_url}
+                                      alt={previewItem.item_name}
+                                      draggable={false}
+                                    />
+                                  </Link>
+                                ) : (
+                                  <img
+                                    key={slot}
+                                    src={previewItem.image_url}
+                                    alt={previewItem.item_name}
+                                    draggable={false}
+                                  />
+                                )
                               ) : (
                                 <div key={slot} className="previewPlaceholder" />
                               );
                             })}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>

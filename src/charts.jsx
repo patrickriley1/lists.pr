@@ -91,6 +91,12 @@ function ChartsPage({ canUseApp, getCharts }) {
                       {entry.item_name || "Unknown Item"}
                     </Link>
                   </p>
+                ) : entry.item_type === "album" ? (
+                  <p className="chartTitle">
+                    <Link to={`/album/${entry.item_id}`} onClick={(event) => event.stopPropagation()}>
+                      {entry.item_name || "Unknown Item"}
+                    </Link>
+                  </p>
                 ) : (
                   <p className="chartTitle">{entry.item_name || "Unknown Item"}</p>
                 )}

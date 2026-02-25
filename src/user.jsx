@@ -116,6 +116,8 @@ function UserPage({ canUseApp, getUserProfile }) {
                         <p>
                           {item.item_type === "artist" ? (
                             <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                          ) : item.item_type === "album" ? (
+                            <Link to={`/album/${item.item_id}`}>{item.item_name}</Link>
                           ) : (
                             item.item_name
                           )}
@@ -138,6 +140,8 @@ function UserPage({ canUseApp, getUserProfile }) {
                     <p className="userReviewItem">
                       {entry.item_type === "artist" ? (
                         <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : entry.item_type === "album" ? (
+                        <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
                       ) : (
                         entry.item_name || "Unknown Item"
                       )}

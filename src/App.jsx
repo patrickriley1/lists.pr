@@ -858,6 +858,8 @@ function App() {
                     <p className="feedItemName">
                       {entry.item_type === "artist" ? (
                         <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : entry.item_type === "album" ? (
+                        <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
                       ) : (
                         entry.item_name || "Unknown Item"
                       )}

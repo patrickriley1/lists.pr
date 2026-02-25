@@ -261,6 +261,8 @@ function LibraryPage({
                     <p>
                       {item.item_type === "artist" ? (
                         <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                      ) : item.item_type === "album" ? (
+                        <Link to={`/album/${item.item_id}`}>{item.item_name}</Link>
                       ) : (
                         item.item_name
                       )}
@@ -349,7 +351,13 @@ function LibraryPage({
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
-                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
+                      <p className="reviewItemName">
+                        {entry.item_type === "album" ? (
+                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : (
+                          entry.item_name || "Unknown Item"
+                        )}
+                      </p>
                       <p><ArtistLinks text={entry.item_subtitle || ""} /></p>
                     </div>
                     <button
@@ -410,6 +418,8 @@ function LibraryPage({
                       <p className="reviewItemName">
                         {entry.item_type === "artist" ? (
                           <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : entry.item_type === "album" ? (
+                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
                         ) : (
                           entry.item_name || "Unknown Item"
                         )}

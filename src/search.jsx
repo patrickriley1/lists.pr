@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import ArtistLinks from "./artist-links";
 import "./search.css";
 
@@ -248,7 +248,17 @@ function SearchPage({
                     <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
                   )}
                   <div className="resultInfo">
-                    <p>{isUser ? item.username : item.name}</p>
+                    <p>
+                      {isUser ? (
+                        item.username
+                      ) : isAlbum ? (
+                        <Link to={`/album/${item.id}`} onClick={(event) => event.stopPropagation()}>
+                          {item.name}
+                        </Link>
+                      ) : (
+                        item.name
+                      )}
+                    </p>
                     <p>
                       {isUser
                         ? "User"

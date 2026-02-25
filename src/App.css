@@ -285,6 +285,24 @@
   color: var(--primary);
 }
 
+a[href^="/artist/"] {
+  color: var(--light);
+  text-decoration: none;
+}
+
+a[href^="/artist/"]:hover {
+  color: var(--primary);
+}
+
+a[href^="/album/"] {
+  color: var(--light);
+  text-decoration: none;
+}
+
+a[href^="/album/"]:hover {
+  color: var(--primary);
+}
+
 .feedRating {
   color: #d9d9d9;
 }

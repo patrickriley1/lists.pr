@@ -327,7 +327,13 @@ function ArtistPage({
                     <span className="artistRowIndex">{index + 1}</span>
                     <div className="artistRowMain">
                       <p className="artistRowTitle">{track.name}</p>
-                      <p>{track.album?.name || ""}</p>
+                      <p>
+                        {track.album?.id ? (
+                          <Link to={`/album/${track.album.id}`}>{track.album?.name || ""}</Link>
+                        ) : (
+                          track.album?.name || ""
+                        )}
+                      </p>
                     </div>
                     <div className="artistRowActions">
                       <span className="artistRowAverage">{formatAverage(trackAverages[track.id])}</span>

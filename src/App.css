@@ -453,11 +453,18 @@
   border: 1px solid #2a2a2a;
   background: transparent;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bcbcbc;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .reviewDot.active {
   border-color: var(--primary);
   background: rgba(0, 187, 255, 0.35);
+  color: #ffffff;
 }
 
 .reviewInput,

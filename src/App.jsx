@@ -1094,7 +1094,9 @@ function App() {
                       setReviewEditorError("");
                     }}
                     aria-label={`Rate ${score} out of 10`}
-                  />
+                  >
+                    {score}
+                  </button>
                 ))}
               </div>
               <input

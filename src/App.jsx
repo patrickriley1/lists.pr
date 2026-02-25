@@ -50,6 +50,7 @@ function App() {
   const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
   const [reviewEditorError, setReviewEditorError] = useState("");
   const [reviewEditorSaving, setReviewEditorSaving] = useState(false);
+  const [reviewEditorDeleting, setReviewEditorDeleting] = useState(false);
   const spotifyTokenCacheRef = useRef({ accessToken: "", expiresAtMs: 0 });
 
   const canUseApp = Boolean(authToken);
@@ -79,6 +80,7 @@ function App() {
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
     setReviewEditorSaving(false);
+    setReviewEditorDeleting(false);
     spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -495,10 +497,11 @@ function App() {
   }
 
   function closeReviewEditor() {
-    if (reviewEditorSaving) return;
+    if (reviewEditorSaving || reviewEditorDeleting) return;
     setReviewEditor({ open: false, payload: null });
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
+    setReviewEditorDeleting(false);
   }
 
   async function submitReviewEditor() {
@@ -522,6 +525,67 @@ function App() {
 
     if (!didSave) {
       setReviewEditorError("Could not save review. Please try again.");
+      return;
+    }
+
+    setReviewEditor({ open: false, payload: null });
+    setReviewDraft({ rating: 0, title: "", body: "" });
+    setReviewEditorError("");
+  }
+
+  async function deleteReview(itemType, itemId) {
+    const response = await fetch(
+      `${apiBaseURL}/api/ratings?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}`,
+      {
+        method: "DELETE",
+        headers: withAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const reviewKey = `${itemType}:${itemId}`;
+
+    setReviewByKey((prev) => {
+      const next = { ...prev };
+      delete next[reviewKey];
+      return next;
+    });
+    setReviewEntries((prev) =>
+      prev.filter((entry) => {
+        const entryType = entry.item_type || "album";
+        const entryId = entry.item_id || entry.album_id;
+        return `${entryType}:${entryId}` !== reviewKey;
+      })
+    );
+    setFeedEntries((prev) =>
+      prev.filter((entry) => {
+        const entryType = entry.item_type || "album";
+        const entryId = entry.item_id || entry.album_id;
+        return entry.app_user_id !== authUser?.id || `${entryType}:${entryId}` !== reviewKey;
+      })
+    );
+
+    return true;
+  }
+
+  async function deleteReviewFromEditor() {
+    const payload = reviewEditor.payload;
+    if (!payload?.item_type || !payload?.item_id) return;
+    const shouldDelete = window.confirm("Delete this review?");
+    if (!shouldDelete) return;
+
+    setReviewEditorDeleting(true);
+    setReviewEditorError("");
+
+    const didDelete = await deleteReview(payload.item_type, payload.item_id);
+
+    setReviewEditorDeleting(false);
+
+    if (!didDelete) {
+      setReviewEditorError("Could not delete review. Please try again.");
       return;
     }
 
@@ -954,6 +1018,7 @@ function App() {
                 reviewEntries={reviewEntries}
                 listenLaterItems={listenLaterItems}
                 removeListenLaterItem={removeListenLaterItem}
+                openReviewEditor={openReviewEditor}
               />
             }
           />
@@ -1051,16 +1116,29 @@ function App() {
               />
               {reviewEditorError ? <p className="authError">{reviewEditorError}</p> : null}
               <div className="reviewModalActions">
+                {reviewEditor.payload &&
+                reviewByKey?.[`${reviewEditor.payload.item_type}:${reviewEditor.payload.item_id}`] ? (
+                  <button
+                    type="button"
+                    className="dangerButton"
+                    onClick={() => {
+                      void deleteReviewFromEditor();
+                    }}
+                    disabled={reviewEditorSaving || reviewEditorDeleting}
+                  >
+                    {reviewEditorDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
                     void submitReviewEditor();
                   }}
-                  disabled={reviewEditorSaving}
+                  disabled={reviewEditorSaving || reviewEditorDeleting}
                 >
                   {reviewEditorSaving ? "Saving..." : "Save"}
                 </button>
-                <button type="button" onClick={closeReviewEditor} disabled={reviewEditorSaving}>
+                <button type="button" onClick={closeReviewEditor} disabled={reviewEditorSaving || reviewEditorDeleting}>
                   Cancel
                 </button>
               </div>

@@ -1014,6 +1014,35 @@ app.get("/api/ratings", requireAuth, async (req, res) => {
   }
 });
 
+app.delete("/api/ratings", requireAuth, async (req, res) => {
+  const itemType = String(req.query.item_type || "").trim();
+  const itemId = String(req.query.item_id || "").trim();
+
+  if (!["album", "track", "artist"].includes(itemType) || !itemId) {
+    return res.status(400).json({ error: "item_type and item_id are required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      DELETE FROM ratings
+      WHERE app_user_id = $1 AND item_type = $2 AND item_id = $3
+      RETURNING id
+      `,
+      [req.appUserId, itemType, itemId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error("delete rating error", error);
+    return res.status(500).json({ error: "Failed to delete rating" });
+  }
+});
+
 app.post("/api/lists", requireAuth, async (req, res) => {
   const { name } = req.body;
 

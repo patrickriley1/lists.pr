@@ -482,6 +482,16 @@
   gap: 8px;
 }
 
+.dangerButton {
+  border-color: #6a1f1f !important;
+  color: #ffb0b0 !important;
+}
+
+.dangerButton:hover {
+  border-color: #b23232 !important;
+  background: rgba(178, 50, 50, 0.16) !important;
+}
+
 
 @media (max-width: 768px) {
   .header {

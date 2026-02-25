@@ -13,6 +13,7 @@ function LibraryPage({
   reviewEntries,
   listenLaterItems,
   removeListenLaterItem,
+  openReviewEditor,
 }) {
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
@@ -405,6 +406,25 @@ function LibraryPage({
                       {entry.review_body ? <p className="reviewText">{entry.review_body}</p> : null}
                       <p>Rating: {entry.rating}/10</p>
                     </div>
+                    <button
+                      type="button"
+                      className="editReviewButton"
+                      onClick={() => {
+                        const itemType = entry.item_type || "album";
+                        const itemId = entry.item_id || entry.album_id;
+                        if (!itemId) return;
+
+                        openReviewEditor({
+                          item_type: itemType,
+                          item_id: itemId,
+                          item_name: entry.item_name || "Unknown Item",
+                          item_subtitle: entry.item_subtitle || (itemType === "artist" ? "Artist" : ""),
+                          image_url: entry.image_url || null,
+                        });
+                      }}
+                    >
+                      Edit
+                    </button>
                   </div>
                 ))}
               </div>

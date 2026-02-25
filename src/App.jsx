@@ -5,6 +5,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import SearchPage from "./search";
 import LibraryPage from "./library";
 import AlbumPage from "./album";
+import ArtistPage from "./artist";
 import UserPage from "./user";
 import ChartsPage from "./charts";
 import SettingsPage from "./settings";
@@ -1045,6 +1046,20 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+              />
+            }
+          />
+          <Route
+            path="/artist/:artistId"
+            element={
+              <ArtistPage
+                canUseApp={canUseApp}
+                spotifyApiFetch={spotifyApiFetch}
+                userLists={userLists}
+                createNewList={createNewList}
+                addItemToList={addItemToList}
+                reviewByKey={reviewByKey}
+                openReviewEditor={openReviewEditor}
               />
             }
           />

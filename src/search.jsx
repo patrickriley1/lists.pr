@@ -221,6 +221,7 @@ function SearchPage({
         {results.map((item) => {
           const isAlbum = searchType === "album";
           const isUser = searchType === "user";
+          const isArtist = searchType === "artist";
 
           return (
             <div
@@ -232,6 +233,9 @@ function SearchPage({
                 }
                 if (isUser) {
                   navigate(`/user/${item.username}`);
+                }
+                if (isArtist) {
+                  navigate(`/artist/${item.id}`);
                 }
               }}
             >

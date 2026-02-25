@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./library.css";
 
 function LibraryPage({
@@ -257,7 +258,13 @@ function LibraryPage({
                     ) : (
                       <div className="listItemImage placeholder" />
                     )}
-                    <p>{item.item_name}</p>
+                    <p>
+                      {item.item_type === "artist" ? (
+                        <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                      ) : (
+                        item.item_name
+                      )}
+                    </p>
                   </div>
                 )
               ))}
@@ -343,7 +350,7 @@ function LibraryPage({
                     )}
                     <div className="reviewBody">
                       <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
-                      <p>{entry.item_subtitle || ""}</p>
+                      <p><ArtistLinks text={entry.item_subtitle || ""} /></p>
                     </div>
                     <button
                       type="button"
@@ -400,8 +407,18 @@ function LibraryPage({
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
-                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
-                      <p>{entry.item_subtitle || (entry.item_type === "artist" ? "Artist" : "")}</p>
+                      <p className="reviewItemName">
+                        {entry.item_type === "artist" ? (
+                          <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : (
+                          entry.item_name || "Unknown Item"
+                        )}
+                      </p>
+                      <p>
+                        {entry.item_type === "artist"
+                          ? entry.item_subtitle || "Artist"
+                          : <ArtistLinks text={entry.item_subtitle || ""} />}
+                      </p>
                       {entry.review_title ? <p className="reviewTitle">{entry.review_title}</p> : null}
                       {entry.review_body ? <p className="reviewText">{entry.review_body}</p> : null}
                       <p>Rating: {entry.rating}/10</p>

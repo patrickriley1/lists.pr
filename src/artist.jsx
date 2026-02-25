@@ -52,8 +52,23 @@ function ArtistPage({
       setTrackAverages({});
       setReleaseAverages({});
 
-      const artistResponse = await spotifyApiFetch(`/artists/${artistId}`);
-      const topTracksResponse = await spotifyApiFetch(`/artists/${artistId}/top-tracks?market=US`);
+      let resolvedArtistId = artistId;
+      let artistResponse = await spotifyApiFetch(`/artists/${encodeURIComponent(resolvedArtistId)}`);
+
+      if (!artistResponse?.ok) {
+        const searchResponse = await spotifyApiFetch(
+          `/search?q=${encodeURIComponent(artistId)}&type=artist&limit=1`
+        );
+        const searchData = searchResponse?.ok ? await searchResponse.json() : null;
+        const firstArtist = searchData?.artists?.items?.[0];
+        if (!firstArtist?.id) {
+          throw new Error("Artist request failed");
+        }
+        resolvedArtistId = firstArtist.id;
+        artistResponse = await spotifyApiFetch(`/artists/${resolvedArtistId}`);
+      }
+
+      const topTracksResponse = await spotifyApiFetch(`/artists/${resolvedArtistId}/top-tracks?market=US`);
 
       if (!artistResponse?.ok || !topTracksResponse?.ok) {
         throw new Error("Artist request failed");
@@ -68,7 +83,7 @@ function ArtistPage({
 
       while (offset < 200) {
         const releasesResponse = await spotifyApiFetch(
-          `/artists/${artistId}/albums?include_groups=album,single,compilation&market=US&limit=${limit}&offset=${offset}`
+          `/artists/${resolvedArtistId}/albums?include_groups=album,single,compilation&market=US&limit=${limit}&offset=${offset}`
         );
 
         if (!releasesResponse?.ok) break;
@@ -99,7 +114,7 @@ function ArtistPage({
       if (typeof getAverageRating !== "function") return;
 
       const [artistAverageData, trackAverageEntries, releaseAverageEntries] = await Promise.all([
-        getAverageRating("artist", artistId).catch(() => null),
+        getAverageRating("artist", resolvedArtistId).catch(() => null),
         Promise.all(
           sortedTracks.map(async (track) => {
             if (!track?.id) return null;

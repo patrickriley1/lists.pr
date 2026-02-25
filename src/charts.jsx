@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./charts.css";
 
 function ChartsPage({ canUseApp, getCharts }) {
@@ -72,6 +73,9 @@ function ChartsPage({ canUseApp, getCharts }) {
                 if (entry.item_type === "album") {
                   navigate(`/album/${entry.item_id}`);
                 }
+                if (entry.item_type === "artist") {
+                  navigate(`/artist/${entry.item_id}`);
+                }
               }}
             >
               <span className="chartRank">{index + 1}</span>
@@ -81,8 +85,18 @@ function ChartsPage({ canUseApp, getCharts }) {
                 <div className="chartImage placeholder" />
               )}
               <div className="chartMeta">
-                <p className="chartTitle">{entry.item_name || "Unknown Item"}</p>
-                <p>{entry.item_subtitle || ""}</p>
+                {entry.item_type === "artist" ? (
+                  <p className="chartTitle">
+                    <Link to={`/artist/${entry.item_id}`} onClick={(event) => event.stopPropagation()}>
+                      {entry.item_name || "Unknown Item"}
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="chartTitle">{entry.item_name || "Unknown Item"}</p>
+                )}
+                <p>
+                  {entry.item_type === "artist" ? entry.item_subtitle || "" : <ArtistLinks text={entry.item_subtitle || ""} />}
+                </p>
               </div>
               <div className="chartScore">
                 <p>{entry.average_rating}/10</p>

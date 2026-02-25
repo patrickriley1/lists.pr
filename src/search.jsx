@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./search.css";
 
 function buildItemPayload(item, searchType) {
@@ -253,7 +254,7 @@ function SearchPage({
                         ? "User"
                         : searchType === "artist"
                           ? "Artist"
-                          : item.artists?.map((artist) => artist.name).join(", ")}
+                          : <ArtistLinks artists={item.artists} />}
                     </p>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./user.css";
 
 function UserPage({ canUseApp, getUserProfile }) {
@@ -112,7 +113,13 @@ function UserPage({ canUseApp, getUserProfile }) {
                       <div key={item.id} className="userActiveItem">
                         <span>{index + 1}</span>
                         {item.image_url ? <img src={item.image_url} alt={item.item_name} /> : <div className="userItemPlaceholder" />}
-                        <p>{item.item_name}</p>
+                        <p>
+                          {item.item_type === "artist" ? (
+                            <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                          ) : (
+                            item.item_name
+                          )}
+                        </p>
                       </div>
                     ))}
                 </div>
@@ -128,8 +135,18 @@ function UserPage({ canUseApp, getUserProfile }) {
                 <div key={entry.id} className="userReviewCard">
                   {entry.image_url ? <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} /> : <div className="userItemPlaceholder" />}
                   <div>
-                    <p className="userReviewItem">{entry.item_name || "Unknown Item"}</p>
-                    <p>{entry.item_subtitle || ""}</p>
+                    <p className="userReviewItem">
+                      {entry.item_type === "artist" ? (
+                        <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : (
+                        entry.item_name || "Unknown Item"
+                      )}
+                    </p>
+                    <p>
+                      {entry.item_type === "artist"
+                        ? entry.item_subtitle || ""
+                        : <ArtistLinks text={entry.item_subtitle || ""} />}
+                    </p>
                     {entry.review_title ? <p className="userReviewTitle">{entry.review_title}</p> : null}
                     {entry.review_body ? <p>{entry.review_body}</p> : null}
                     <p>Rating: {entry.rating}/10</p>

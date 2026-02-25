@@ -9,6 +9,7 @@ import ArtistPage from "./artist";
 import UserPage from "./user";
 import ChartsPage from "./charts";
 import SettingsPage from "./settings";
+import ArtistLinks from "./artist-links";
 import "./App.css";
 
 function UserAvatar({ imageUrl, name, className }) {
@@ -854,8 +855,16 @@ function App() {
                         </button>
                       </div>
                     </div>
-                    <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
-                    <p>{entry.item_subtitle || ""}</p>
+                    <p className="feedItemName">
+                      {entry.item_type === "artist" ? (
+                        <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : (
+                        entry.item_name || "Unknown Item"
+                      )}
+                    </p>
+                    <p>
+                      {entry.item_type === "artist" ? entry.item_subtitle || "" : <ArtistLinks text={entry.item_subtitle || ""} />}
+                    </p>
                     {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
                     {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
                   </div>

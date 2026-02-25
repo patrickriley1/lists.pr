@@ -11,6 +11,13 @@ function releaseLooksLikeEp(release) {
   return Number(release?.total_tracks || 0) > 1 || /\bEP\b/i.test(name);
 }
 
+function formatAverage(averageData) {
+  if (!averageData || Number(averageData.rating_count || 0) === 0) {
+    return "No ratings";
+  }
+  return `${averageData.average_rating}/10`;
+}
+
 function ArtistPage({
   canUseApp,
   spotifyApiFetch,
@@ -19,11 +26,15 @@ function ArtistPage({
   addItemToList,
   reviewByKey,
   openReviewEditor,
+  getAverageRating,
 }) {
   const { artistId } = useParams();
   const [artist, setArtist] = useState(null);
   const [topTracks, setTopTracks] = useState([]);
   const [releases, setReleases] = useState([]);
+  const [artistAverage, setArtistAverage] = useState({ average_rating: null, rating_count: 0 });
+  const [trackAverages, setTrackAverages] = useState({});
+  const [releaseAverages, setReleaseAverages] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
@@ -37,6 +48,9 @@ function ArtistPage({
       setArtist(null);
       setTopTracks([]);
       setReleases([]);
+      setArtistAverage({ average_rating: null, rating_count: 0 });
+      setTrackAverages({});
+      setReleaseAverages({});
 
       const artistResponse = await spotifyApiFetch(`/artists/${artistId}`);
       const topTracksResponse = await spotifyApiFetch(`/artists/${artistId}/top-tracks?market=US`);
@@ -75,9 +89,59 @@ function ArtistPage({
         }
       });
 
+      const sortedTracks = (topTracksData?.tracks || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+      const sortedReleases = sortByReleaseDateDesc(Array.from(dedupedReleaseMap.values()));
+
       setArtist(artistData);
-      setTopTracks((topTracksData?.tracks || []).sort((a, b) => (b.popularity || 0) - (a.popularity || 0)));
-      setReleases(sortByReleaseDateDesc(Array.from(dedupedReleaseMap.values())));
+      setTopTracks(sortedTracks);
+      setReleases(sortedReleases);
+
+      if (typeof getAverageRating !== "function") return;
+
+      const [artistAverageData, trackAverageEntries, releaseAverageEntries] = await Promise.all([
+        getAverageRating("artist", artistId).catch(() => null),
+        Promise.all(
+          sortedTracks.map(async (track) => {
+            if (!track?.id) return null;
+            try {
+              const averageData = await getAverageRating("track", track.id);
+              return [
+                track.id,
+                {
+                  average_rating: averageData?.average_rating ?? null,
+                  rating_count: Number(averageData?.rating_count || 0),
+                },
+              ];
+            } catch {
+              return [track.id, { average_rating: null, rating_count: 0 }];
+            }
+          })
+        ),
+        Promise.all(
+          sortedReleases.map(async (release) => {
+            if (!release?.id) return null;
+            try {
+              const averageData = await getAverageRating("album", release.id);
+              return [
+                release.id,
+                {
+                  average_rating: averageData?.average_rating ?? null,
+                  rating_count: Number(averageData?.rating_count || 0),
+                },
+              ];
+            } catch {
+              return [release.id, { average_rating: null, rating_count: 0 }];
+            }
+          })
+        ),
+      ]);
+
+      setArtistAverage({
+        average_rating: artistAverageData?.average_rating ?? null,
+        rating_count: Number(artistAverageData?.rating_count || 0),
+      });
+      setTrackAverages(Object.fromEntries((trackAverageEntries || []).filter(Boolean)));
+      setReleaseAverages(Object.fromEntries((releaseAverageEntries || []).filter(Boolean)));
     }
 
     fetchArtistPage()
@@ -87,7 +151,7 @@ function ArtistPage({
       .finally(() => {
         setLoading(false);
       });
-  }, [artistId, canUseApp, spotifyApiFetch]);
+  }, [artistId, canUseApp, getAverageRating, spotifyApiFetch]);
 
   const artistPayload = artist
     ? {
@@ -121,6 +185,45 @@ function ArtistPage({
     [singleGroupReleases]
   );
 
+  function openReleaseReview(release) {
+    if (!release?.id || !artist) return;
+    openReviewEditor({
+      item_type: "album",
+      item_id: release.id,
+      item_name: release.name,
+      item_subtitle: artist.name,
+      image_url: release.images?.[0]?.url || null,
+    });
+  }
+
+  function renderReleaseSection(items) {
+    return (
+      <div className="artistRows">
+        {items.map((release) => (
+          <div key={release.id} className="artistReleaseRow">
+            <Link to={`/album/${release.id}`} className="artistReleaseLink">
+              {release.images?.[0]?.url ? (
+                <img src={release.images[0].url} alt={release.name} />
+              ) : (
+                <div className="artistReleaseImage placeholder" />
+              )}
+              <div className="artistRowMain">
+                <p className="artistRowTitle">{release.name}</p>
+                <p>{release.release_date?.slice(0, 4) || ""}</p>
+              </div>
+            </Link>
+            <div className="artistRowActions release">
+              <span className="artistRowAverage">{formatAverage(releaseAverages[release.id])}</span>
+              <button type="button" onClick={() => openReleaseReview(release)}>
+                {reviewByKey?.[`album:${release.id}`]?.rating ? `Rated: ${reviewByKey[`album:${release.id}`].rating}/10` : "Rate"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (!canUseApp) {
     return <Navigate to="/" replace />;
   }
@@ -141,6 +244,11 @@ function ArtistPage({
             <div className="artistHeaderMeta">
               <h2 className="artistName">{artist.name}</h2>
               <p className="artistType">Artist</p>
+              <p className="artistAverage">
+                {artistAverage.rating_count > 0
+                  ? `Average rating: ${artistAverage.average_rating}/10 • ${artistAverage.rating_count} users`
+                  : "Average rating: No ratings yet"}
+              </p>
               <div className="artistActionRow">
                 <div className="artistAddListWrap">
                   <button
@@ -188,7 +296,7 @@ function ArtistPage({
                     openReviewEditor(artistPayload);
                   }}
                 >
-                  {existingArtistReview?.rating ? `Rated: ${existingArtistReview.rating}/10` : "Review"}
+                  {existingArtistReview?.rating ? `Rated: ${existingArtistReview.rating}/10` : "Rate"}
                 </button>
               </div>
             </div>
@@ -206,7 +314,26 @@ function ArtistPage({
                       <p className="artistRowTitle">{track.name}</p>
                       <p>{track.album?.name || ""}</p>
                     </div>
-                    <p className="artistRowRight">{track.popularity ?? 0}</p>
+                    <div className="artistRowActions">
+                      <span className="artistRowAverage">{formatAverage(trackAverages[track.id])}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!track?.id) return;
+                          openReviewEditor({
+                            item_type: "track",
+                            item_id: track.id,
+                            item_name: track.name,
+                            item_subtitle: track.artists?.map((artistItem) => artistItem.name).join(", ") || artist.name,
+                            image_url: track.album?.images?.[0]?.url || artist.images?.[0]?.url || null,
+                          });
+                        }}
+                      >
+                        {reviewByKey?.[`track:${track.id}`]?.rating
+                          ? `Rated: ${reviewByKey[`track:${track.id}`].rating}/10`
+                          : "Rate"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -214,76 +341,16 @@ function ArtistPage({
 
             <section className="artistColumn">
               <h3>Albums</h3>
-              {albums.length === 0 ? <p>No albums found.</p> : null}
-              <div className="artistRows">
-                {albums.map((release) => (
-                  <Link key={release.id} to={`/album/${release.id}`} className="artistReleaseRow">
-                    {release.images?.[0]?.url ? (
-                      <img src={release.images[0].url} alt={release.name} />
-                    ) : (
-                      <div className="artistReleaseImage placeholder" />
-                    )}
-                    <div className="artistRowMain">
-                      <p className="artistRowTitle">{release.name}</p>
-                      <p>{release.release_date?.slice(0, 4) || ""}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              {albums.length === 0 ? <p>No albums found.</p> : renderReleaseSection(albums)}
 
               <h4>EPs</h4>
-              <div className="artistRows">
-                {eps.length === 0 ? <p>No EPs found.</p> : null}
-                {eps.map((release) => (
-                  <Link key={release.id} to={`/album/${release.id}`} className="artistReleaseRow">
-                    {release.images?.[0]?.url ? (
-                      <img src={release.images[0].url} alt={release.name} />
-                    ) : (
-                      <div className="artistReleaseImage placeholder" />
-                    )}
-                    <div className="artistRowMain">
-                      <p className="artistRowTitle">{release.name}</p>
-                      <p>{release.release_date?.slice(0, 4) || ""}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              {eps.length === 0 ? <p>No EPs found.</p> : renderReleaseSection(eps)}
 
               <h4>Singles</h4>
-              <div className="artistRows">
-                {singles.length === 0 ? <p>No singles found.</p> : null}
-                {singles.map((release) => (
-                  <Link key={release.id} to={`/album/${release.id}`} className="artistReleaseRow">
-                    {release.images?.[0]?.url ? (
-                      <img src={release.images[0].url} alt={release.name} />
-                    ) : (
-                      <div className="artistReleaseImage placeholder" />
-                    )}
-                    <div className="artistRowMain">
-                      <p className="artistRowTitle">{release.name}</p>
-                      <p>{release.release_date?.slice(0, 4) || ""}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              {singles.length === 0 ? <p>No singles found.</p> : renderReleaseSection(singles)}
 
               <h4>Compilations</h4>
-              <div className="artistRows">
-                {compilations.length === 0 ? <p>No compilations found.</p> : null}
-                {compilations.map((release) => (
-                  <Link key={release.id} to={`/album/${release.id}`} className="artistReleaseRow">
-                    {release.images?.[0]?.url ? (
-                      <img src={release.images[0].url} alt={release.name} />
-                    ) : (
-                      <div className="artistReleaseImage placeholder" />
-                    )}
-                    <div className="artistRowMain">
-                      <p className="artistRowTitle">{release.name}</p>
-                      <p>{release.release_date?.slice(0, 4) || ""}</p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              {compilations.length === 0 ? <p>No compilations found.</p> : renderReleaseSection(compilations)}
             </section>
           </div>
         </div>

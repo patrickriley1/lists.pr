@@ -1060,6 +1060,7 @@ function App() {
                 addItemToList={addItemToList}
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
+                getAverageRating={getAverageRating}
               />
             }
           />

@@ -665,9 +665,21 @@ function App() {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const rawBody = await response.text();
+    let data = {};
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = {};
+      }
+    }
     if (!response.ok) {
-      throw new Error(data.error || "Failed to submit");
+      const fallbackMessage =
+        response.status === 404
+          ? "Submission endpoint not found on the API. Deploy backend changes."
+          : `Failed to submit (${response.status})`;
+      throw new Error(data.error || fallbackMessage);
     }
 
     return data;

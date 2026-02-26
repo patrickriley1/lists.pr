@@ -285,6 +285,24 @@
   color: var(--primary);
 }
 
+a[href^="/artist/"] {
+  color: var(--light);
+  text-decoration: none;
+}
+
+a[href^="/artist/"]:hover {
+  color: var(--primary);
+}
+
+a[href^="/album/"] {
+  color: var(--light);
+  text-decoration: none;
+}
+
+a[href^="/album/"]:hover {
+  color: var(--primary);
+}
+
 .feedRating {
   color: #d9d9d9;
 }
@@ -453,11 +471,18 @@
   border: 1px solid #2a2a2a;
   background: transparent;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bcbcbc;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .reviewDot.active {
   border-color: var(--primary);
   background: rgba(0, 187, 255, 0.35);
+  color: #ffffff;
 }
 
 .reviewInput,
@@ -480,6 +505,16 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.dangerButton {
+  border-color: #6a1f1f !important;
+  color: #ffb0b0 !important;
+}
+
+.dangerButton:hover {
+  border-color: #b23232 !important;
+  background: rgba(178, 50, 50, 0.16) !important;
 }
 
 

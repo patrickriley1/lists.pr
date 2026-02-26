@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./library.css";
 
 function LibraryPage({
@@ -13,6 +14,7 @@ function LibraryPage({
   reviewEntries,
   listenLaterItems,
   removeListenLaterItem,
+  openReviewEditor,
 }) {
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
@@ -247,16 +249,35 @@ function LibraryPage({
                   <div key={item.id} className="myListItem listItemCard readonly">
                     <span className="listItemPosition">{index + 1}</span>
                     {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.item_name}
-                        className="listItemImage"
-                        draggable={false}
-                      />
+                      item.item_type === "album" || item.item_type === "artist" ? (
+                        <Link to={`/${item.item_type}/${item.item_id}`}>
+                          <img
+                            src={item.image_url}
+                            alt={item.item_name}
+                            className="listItemImage"
+                            draggable={false}
+                          />
+                        </Link>
+                      ) : (
+                        <img
+                          src={item.image_url}
+                          alt={item.item_name}
+                          className="listItemImage"
+                          draggable={false}
+                        />
+                      )
                     ) : (
                       <div className="listItemImage placeholder" />
                     )}
-                    <p>{item.item_name}</p>
+                    <p>
+                      {item.item_type === "artist" ? (
+                        <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                      ) : item.item_type === "album" ? (
+                        <Link to={`/album/${item.item_id}`}>{item.item_name}</Link>
+                      ) : (
+                        item.item_name
+                      )}
+                    </p>
                   </div>
                 )
               ))}
@@ -287,13 +308,19 @@ function LibraryPage({
                         .slice(0, 4);
 
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={list.id}
+                          role="button"
+                          tabIndex={0}
                           className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
                           onClick={() =>
                             list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id)
                           }
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id);
+                          }}
                         >
                           <div className="listPreviewHeader">
                             <p className="listPreviewTitle">{list.name}</p>
@@ -313,7 +340,7 @@ function LibraryPage({
                               );
                             })}
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -341,8 +368,14 @@ function LibraryPage({
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
-                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
-                      <p>{entry.item_subtitle || ""}</p>
+                      <p className="reviewItemName">
+                        {entry.item_type === "album" ? (
+                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : (
+                          entry.item_name || "Unknown Item"
+                        )}
+                      </p>
+                      <p><ArtistLinks text={entry.item_subtitle || ""} /></p>
                     </div>
                     <button
                       type="button"
@@ -399,12 +432,43 @@ function LibraryPage({
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
-                      <p className="reviewItemName">{entry.item_name || "Unknown Item"}</p>
-                      <p>{entry.item_subtitle || (entry.item_type === "artist" ? "Artist" : "")}</p>
+                      <p className="reviewItemName">
+                        {entry.item_type === "artist" ? (
+                          <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : entry.item_type === "album" ? (
+                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        ) : (
+                          entry.item_name || "Unknown Item"
+                        )}
+                      </p>
+                      <p>
+                        {entry.item_type === "artist"
+                          ? entry.item_subtitle || "Artist"
+                          : <ArtistLinks text={entry.item_subtitle || ""} />}
+                      </p>
                       {entry.review_title ? <p className="reviewTitle">{entry.review_title}</p> : null}
                       {entry.review_body ? <p className="reviewText">{entry.review_body}</p> : null}
                       <p>Rating: {entry.rating}/10</p>
                     </div>
+                    <button
+                      type="button"
+                      className="editReviewButton"
+                      onClick={() => {
+                        const itemType = entry.item_type || "album";
+                        const itemId = entry.item_id || entry.album_id;
+                        if (!itemId) return;
+
+                        openReviewEditor({
+                          item_type: itemType,
+                          item_id: itemId,
+                          item_name: entry.item_name || "Unknown Item",
+                          item_subtitle: entry.item_subtitle || (itemType === "artist" ? "Artist" : ""),
+                          image_url: entry.image_url || null,
+                        });
+                      }}
+                    >
+                      Edit
+                    </button>
                   </div>
                 ))}
               </div>

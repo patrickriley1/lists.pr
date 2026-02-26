@@ -138,6 +138,11 @@
   background: #151515;
 }
 
+.resultUserAvatarImage {
+  display: block;
+  object-fit: cover;
+}
+
 .resultActionsRow {
   display: flex;
   align-items: center;
@@ -160,6 +165,90 @@
 .resultItem:hover {
   background-color: var(--secondary);
   cursor: pointer;
+}
+
+.contributionPromptCard {
+  width: 100%;
+  border: 1px dashed #2a2a2a;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.contributionPromptCard p {
+  margin: 0;
+  color: #dddddd;
+}
+
+.contributionPromptCard button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.contributionPromptCard button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.contributionModalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+
+.contributionModalCard {
+  width: 100%;
+  max-width: 520px;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.contributionModalCard h3 {
+  margin: 0 0 12px 0;
+}
+
+.contributionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.contributionForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #d5d5d5;
+  font-size: 0.92rem;
+}
+
+.contributionForm textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.contributionActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.contributionSuccess {
+  margin: 0;
+  color: #8ee89f;
 }
 
 @media (max-width: 768px) {
@@ -229,5 +318,22 @@
   .addListDropdown {
     left: auto;
     right: 0;
+  }
+
+  .contributionPromptCard {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .contributionPromptCard button {
+    width: 100%;
+  }
+
+  .contributionActions {
+    flex-direction: column;
+  }
+
+  .contributionActions button {
+    width: 100%;
   }
 }

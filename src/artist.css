@@ -1,0 +1,259 @@
+.artistPage {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.artistBackButton {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  cursor: pointer;
+}
+
+.artistBackButton:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.artistLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.artistHeader {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.artistImage {
+  width: 180px;
+  height: 180px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+}
+
+.artistImage.placeholder {
+  background: #171717;
+  border: 1px dashed #2f2f2f;
+}
+
+.artistHeaderMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.artistName {
+  margin: 0;
+  color: var(--light);
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.artistType {
+  margin: 0;
+  color: #cccccc;
+}
+
+.artistAverage {
+  margin: 0;
+  color: #e2e2e2;
+  font-size: 0.95rem;
+}
+
+.artistActionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.artistActionRow button,
+.artistAddListWrap > button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: transparent;
+}
+
+.artistActionRow button:hover,
+.artistAddListWrap > button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.artistAddListWrap {
+  position: relative;
+}
+
+.artistAddListDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #101010;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+}
+
+.artistAddListDropdown button {
+  width: 100%;
+  text-align: left;
+}
+
+.artistBodyColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.artistColumn {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artistColumn h3,
+.artistColumn h4 {
+  margin: 0;
+  color: var(--light);
+}
+
+.artistRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.artistRow,
+.artistReleaseRow {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.artistReleaseRow {
+  grid-template-columns: 1fr auto;
+}
+
+.artistReleaseRow:hover,
+.artistRow:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.08);
+}
+
+.artistRowIndex {
+  color: #cfcfcf;
+  text-align: right;
+}
+
+.artistRowMain p {
+  margin: 0;
+}
+
+.artistRowTitle {
+  color: var(--light);
+  font-weight: 700;
+}
+
+.artistRowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.artistRowActions.release {
+  margin-left: 8px;
+}
+
+.artistRowAverage {
+  color: #d3d3d3;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.artistRowActions button {
+  color: var(--light);
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: transparent;
+  min-width: 78px;
+}
+
+.artistRowActions button:hover {
+  border-color: var(--primary);
+  background: rgba(0, 187, 255, 0.15);
+}
+
+.artistReleaseLink {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.artistReleaseLink img,
+.artistReleaseImage {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+}
+
+.artistReleaseImage.placeholder {
+  background: #171717;
+  border: 1px dashed #2f2f2f;
+}
+
+@media (max-width: 900px) {
+  .artistBodyColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .artistRowActions {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 768px) {
+  .artistHeader {
+    flex-direction: column;
+  }
+
+  .artistImage {
+    width: min(220px, 100%);
+    height: auto;
+    aspect-ratio: 1;
+  }
+}

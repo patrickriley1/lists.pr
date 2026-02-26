@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import ArtistLinks from "./artist-links";
 import "./search.css";
 
 function buildItemPayload(item, searchType) {
@@ -43,14 +44,28 @@ function SearchPage({
   reviewByKey,
   openReviewEditor,
   searchUsers,
+  submitCommunitySubmission,
 }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+  const [contributionOpen, setContributionOpen] = useState(false);
+  const [contributionSaving, setContributionSaving] = useState(false);
+  const [contributionError, setContributionError] = useState("");
+  const [contributionSuccess, setContributionSuccess] = useState("");
+  const [contributionForm, setContributionForm] = useState({
+    item_type: "album",
+    item_name: "",
+    artist_name: "",
+    release_date: "",
+    image_url: "",
+    notes: "",
+  });
   const listenLaterByKey = (listenLaterItems || []).reduce((acc, entry) => {
     acc[`${entry.item_type}:${entry.item_id}`] = entry;
     return acc;
@@ -61,6 +76,7 @@ function SearchPage({
 
     setSearchLoading(true);
     setSearchError("");
+    setHasSearched(true);
 
     try {
       if (searchType === "user") {
@@ -148,6 +164,47 @@ function SearchPage({
     );
   }
 
+  function openContributionModal() {
+    const defaultItemType = ["album", "artist", "track"].includes(searchType) ? searchType : "album";
+    setContributionForm({
+      item_type: defaultItemType,
+      item_name: search.trim() || "",
+      artist_name: "",
+      release_date: "",
+      image_url: "",
+      notes: "",
+    });
+    setContributionError("");
+    setContributionSuccess("");
+    setContributionOpen(true);
+  }
+
+  async function submitContribution(event) {
+    event.preventDefault();
+    if (typeof submitCommunitySubmission !== "function") return;
+
+    setContributionSaving(true);
+    setContributionError("");
+    setContributionSuccess("");
+
+    try {
+      await submitCommunitySubmission({
+        item_type: contributionForm.item_type,
+        item_name: contributionForm.item_name.trim(),
+        artist_name: contributionForm.artist_name.trim(),
+        release_date: contributionForm.release_date,
+        image_url: contributionForm.image_url.trim(),
+        notes: contributionForm.notes.trim(),
+      });
+      setContributionSuccess("Thanks. Your submission is in review.");
+      setContributionForm((prev) => ({ ...prev, item_name: "", artist_name: "", release_date: "", image_url: "", notes: "" }));
+    } catch (error) {
+      setContributionError(error.message || "Could not submit right now.");
+    } finally {
+      setContributionSaving(false);
+    }
+  }
+
   if (!canUseApp) {
     return <Navigate to="/" replace />;
   }
@@ -162,6 +219,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("album");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Album Search
@@ -172,6 +230,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("track");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Song Search
@@ -182,6 +241,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("artist");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Artist Search
@@ -192,6 +252,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("user");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           User Search
@@ -221,6 +282,7 @@ function SearchPage({
         {results.map((item) => {
           const isAlbum = searchType === "album";
           const isUser = searchType === "user";
+          const isArtist = searchType === "artist";
 
           return (
             <div
@@ -233,23 +295,46 @@ function SearchPage({
                 if (isUser) {
                   navigate(`/user/${item.username}`);
                 }
+                if (isArtist) {
+                  navigate(`/artist/${item.id}`);
+                }
               }}
             >
               <div className="resultTopRow">
                 <div className="resultMain">
                   {isUser ? (
-                    <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                    item.profile_image_url ? (
+                      <img
+                        src={item.profile_image_url}
+                        alt={item.username || "User"}
+                        className="resultUserAvatar resultUserAvatarImage"
+                        width="80"
+                        height="80"
+                      />
+                    ) : (
+                      <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                    )
                   ) : (
                     <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
                   )}
                   <div className="resultInfo">
-                    <p>{isUser ? item.username : item.name}</p>
+                    <p>
+                      {isUser ? (
+                        item.username
+                      ) : isAlbum ? (
+                        <Link to={`/album/${item.id}`} onClick={(event) => event.stopPropagation()}>
+                          {item.name}
+                        </Link>
+                      ) : (
+                        item.name
+                      )}
+                    </p>
                     <p>
                       {isUser
                         ? "User"
                         : searchType === "artist"
                           ? "Artist"
-                          : item.artists?.map((artist) => artist.name).join(", ")}
+                          : <ArtistLinks artists={item.artists} />}
                     </p>
                   </div>
                 </div>
@@ -292,6 +377,118 @@ function SearchPage({
           );
         })}
       </div>
+
+      {searchType === "album" && hasSearched ? (
+        <div className="contributionPromptCard">
+          <p>Can&apos;t find the album you&apos;re looking for?</p>
+          <button type="button" onClick={openContributionModal}>
+            Submit it to the database
+          </button>
+        </div>
+      ) : null}
+
+      {contributionOpen ? (
+        <div
+          className="contributionModalBackdrop"
+          onClick={() => {
+            setContributionOpen(false);
+          }}
+        >
+          <div
+            className="contributionModalCard"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <h3>Add Missing Music</h3>
+            <form className="contributionForm" onSubmit={(event) => void submitContribution(event)}>
+              <label>
+                Type
+                <select
+                  value={contributionForm.item_type}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, item_type: event.target.value }));
+                  }}
+                >
+                  <option value="album">Album</option>
+                  <option value="track">Song</option>
+                  <option value="artist">Artist</option>
+                </select>
+              </label>
+              <label>
+                Name
+                <input
+                  type="text"
+                  value={contributionForm.item_name}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, item_name: event.target.value }));
+                  }}
+                  placeholder="Name"
+                  required
+                />
+              </label>
+              <label>
+                Artist Name
+                <input
+                  type="text"
+                  value={contributionForm.artist_name}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, artist_name: event.target.value }));
+                  }}
+                  placeholder="Artist (optional)"
+                />
+              </label>
+              <label>
+                Release Date
+                <input
+                  type="date"
+                  value={contributionForm.release_date}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, release_date: event.target.value }));
+                  }}
+                />
+              </label>
+              <label>
+                Cover/Image URL
+                <input
+                  type="url"
+                  value={contributionForm.image_url}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, image_url: event.target.value }));
+                  }}
+                  placeholder="https://..."
+                />
+              </label>
+              <label>
+                Notes
+                <textarea
+                  value={contributionForm.notes}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, notes: event.target.value }));
+                  }}
+                  placeholder="Optional context or source"
+                />
+              </label>
+              {contributionError ? <p className="authError">{contributionError}</p> : null}
+              {contributionSuccess ? <p className="contributionSuccess">{contributionSuccess}</p> : null}
+              <div className="contributionActions">
+                <button type="submit" disabled={contributionSaving}>
+                  {contributionSaving ? "Submitting..." : "Submit"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContributionOpen(false);
+                  }}
+                  disabled={contributionSaving}
+                >
+                  Close
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

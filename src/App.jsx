@@ -5,9 +5,11 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import SearchPage from "./search";
 import LibraryPage from "./library";
 import AlbumPage from "./album";
+import ArtistPage from "./artist";
 import UserPage from "./user";
 import ChartsPage from "./charts";
 import SettingsPage from "./settings";
+import ArtistLinks from "./artist-links";
 import "./App.css";
 
 function UserAvatar({ imageUrl, name, className }) {
@@ -50,6 +52,7 @@ function App() {
   const [reviewDraft, setReviewDraft] = useState({ rating: 0, title: "", body: "" });
   const [reviewEditorError, setReviewEditorError] = useState("");
   const [reviewEditorSaving, setReviewEditorSaving] = useState(false);
+  const [reviewEditorDeleting, setReviewEditorDeleting] = useState(false);
   const spotifyTokenCacheRef = useRef({ accessToken: "", expiresAtMs: 0 });
 
   const canUseApp = Boolean(authToken);
@@ -79,6 +82,7 @@ function App() {
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
     setReviewEditorSaving(false);
+    setReviewEditorDeleting(false);
     spotifyTokenCacheRef.current = { accessToken: "", expiresAtMs: 0 };
     localStorage.removeItem("app_auth_token");
     localStorage.removeItem("app_auth_user");
@@ -495,10 +499,11 @@ function App() {
   }
 
   function closeReviewEditor() {
-    if (reviewEditorSaving) return;
+    if (reviewEditorSaving || reviewEditorDeleting) return;
     setReviewEditor({ open: false, payload: null });
     setReviewDraft({ rating: 0, title: "", body: "" });
     setReviewEditorError("");
+    setReviewEditorDeleting(false);
   }
 
   async function submitReviewEditor() {
@@ -522,6 +527,67 @@ function App() {
 
     if (!didSave) {
       setReviewEditorError("Could not save review. Please try again.");
+      return;
+    }
+
+    setReviewEditor({ open: false, payload: null });
+    setReviewDraft({ rating: 0, title: "", body: "" });
+    setReviewEditorError("");
+  }
+
+  async function deleteReview(itemType, itemId) {
+    const response = await fetch(
+      `${apiBaseURL}/api/ratings?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}`,
+      {
+        method: "DELETE",
+        headers: withAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const reviewKey = `${itemType}:${itemId}`;
+
+    setReviewByKey((prev) => {
+      const next = { ...prev };
+      delete next[reviewKey];
+      return next;
+    });
+    setReviewEntries((prev) =>
+      prev.filter((entry) => {
+        const entryType = entry.item_type || "album";
+        const entryId = entry.item_id || entry.album_id;
+        return `${entryType}:${entryId}` !== reviewKey;
+      })
+    );
+    setFeedEntries((prev) =>
+      prev.filter((entry) => {
+        const entryType = entry.item_type || "album";
+        const entryId = entry.item_id || entry.album_id;
+        return entry.app_user_id !== authUser?.id || `${entryType}:${entryId}` !== reviewKey;
+      })
+    );
+
+    return true;
+  }
+
+  async function deleteReviewFromEditor() {
+    const payload = reviewEditor.payload;
+    if (!payload?.item_type || !payload?.item_id) return;
+    const shouldDelete = window.confirm("Delete this review?");
+    if (!shouldDelete) return;
+
+    setReviewEditorDeleting(true);
+    setReviewEditorError("");
+
+    const didDelete = await deleteReview(payload.item_type, payload.item_id);
+
+    setReviewEditorDeleting(false);
+
+    if (!didDelete) {
+      setReviewEditorError("Could not delete review. Please try again.");
       return;
     }
 
@@ -590,6 +656,33 @@ function App() {
     });
     if (!response.ok) return [];
     return response.json();
+  }
+
+  async function submitCommunitySubmission(payload) {
+    const response = await fetch(`${apiBaseURL}/api/community/submissions`, {
+      method: "POST",
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+
+    const rawBody = await response.text();
+    let data = {};
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        data = {};
+      }
+    }
+    if (!response.ok) {
+      const fallbackMessage =
+        response.status === 404
+          ? "Submission endpoint not found on the API. Deploy backend changes."
+          : `Failed to submit (${response.status})`;
+      throw new Error(data.error || fallbackMessage);
+    }
+
+    return data;
   }
 
   async function getUserProfile(username) {
@@ -789,8 +882,18 @@ function App() {
                         </button>
                       </div>
                     </div>
-                    <p className="feedItemName">{entry.item_name || "Unknown Item"}</p>
-                    <p>{entry.item_subtitle || ""}</p>
+                    <p className="feedItemName">
+                      {entry.item_type === "artist" ? (
+                        <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : entry.item_type === "album" ? (
+                        <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                      ) : (
+                        entry.item_name || "Unknown Item"
+                      )}
+                    </p>
+                    <p>
+                      {entry.item_type === "artist" ? entry.item_subtitle || "" : <ArtistLinks text={entry.item_subtitle || ""} />}
+                    </p>
                     {entry.review_title ? <p className="feedReviewTitle">{entry.review_title}</p> : null}
                     {entry.review_body ? <p className="feedReviewBody">{entry.review_body}</p> : null}
                   </div>
@@ -843,7 +946,13 @@ function App() {
                         <div key={`${entry.id}-expanded-${item.item_name || "item"}-${index}`} className="homeListExpandedItem">
                           <span className="homeListExpandedPosition">{index + 1}</span>
                           {item?.image_url ? (
-                            <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                            item.item_type === "album" || item.item_type === "artist" ? (
+                              <Link to={`/${item.item_type}/${item.item_id}`}>
+                                <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                              </Link>
+                            ) : (
+                              <img src={item.image_url} alt={item.item_name || "List item"} className="homeListExpandedImage" />
+                            )
                           ) : (
                             <div className="homeListExpandedImage placeholder" />
                           )}
@@ -852,7 +961,7 @@ function App() {
                       ))}
                     </div>
                   )}
-                  {listItems.length > 8 ? (
+                  {isListExpanded || listItems.length > 8 ? (
                     <button
                       type="button"
                       className="listFeedToggleButton"
@@ -860,7 +969,7 @@ function App() {
                         setExpandedHomeListIds((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }));
                       }}
                     >
-                      {isListExpanded ? "Show less" : "Show full list"}
+                      {isListExpanded ? "Collapse" : "Show full list"}
                     </button>
                   ) : null}
                 </div>
@@ -937,6 +1046,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 searchUsers={searchUsers}
+                submitCommunitySubmission={submitCommunitySubmission}
               />
             }
           />
@@ -954,6 +1064,7 @@ function App() {
                 reviewEntries={reviewEntries}
                 listenLaterItems={listenLaterItems}
                 removeListenLaterItem={removeListenLaterItem}
+                openReviewEditor={openReviewEditor}
               />
             }
           />
@@ -977,6 +1088,21 @@ function App() {
                 addItemToList={addItemToList}
                 addToListenLater={addToListenLater}
                 listenLaterItems={listenLaterItems}
+                reviewByKey={reviewByKey}
+                openReviewEditor={openReviewEditor}
+                getAverageRating={getAverageRating}
+              />
+            }
+          />
+          <Route
+            path="/artist/:artistId"
+            element={
+              <ArtistPage
+                canUseApp={canUseApp}
+                spotifyApiFetch={spotifyApiFetch}
+                userLists={userLists}
+                createNewList={createNewList}
+                addItemToList={addItemToList}
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
@@ -1029,7 +1155,9 @@ function App() {
                       setReviewEditorError("");
                     }}
                     aria-label={`Rate ${score} out of 10`}
-                  />
+                  >
+                    {score}
+                  </button>
                 ))}
               </div>
               <input
@@ -1051,16 +1179,29 @@ function App() {
               />
               {reviewEditorError ? <p className="authError">{reviewEditorError}</p> : null}
               <div className="reviewModalActions">
+                {reviewEditor.payload &&
+                reviewByKey?.[`${reviewEditor.payload.item_type}:${reviewEditor.payload.item_id}`] ? (
+                  <button
+                    type="button"
+                    className="dangerButton"
+                    onClick={() => {
+                      void deleteReviewFromEditor();
+                    }}
+                    disabled={reviewEditorSaving || reviewEditorDeleting}
+                  >
+                    {reviewEditorDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
                     void submitReviewEditor();
                   }}
-                  disabled={reviewEditorSaving}
+                  disabled={reviewEditorSaving || reviewEditorDeleting}
                 >
                   {reviewEditorSaving ? "Saving..." : "Save"}
                 </button>
-                <button type="button" onClick={closeReviewEditor} disabled={reviewEditorSaving}>
+                <button type="button" onClick={closeReviewEditor} disabled={reviewEditorSaving || reviewEditorDeleting}>
                   Cancel
                 </button>
               </div>

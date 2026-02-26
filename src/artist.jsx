@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import "./artist.css";
 
 function sortByReleaseDateDesc(items) {
@@ -28,6 +28,7 @@ function ArtistPage({
   openReviewEditor,
   getAverageRating,
 }) {
+  const navigate = useNavigate();
   const { artistId } = useParams();
   const [artist, setArtist] = useState(null);
   const [topTracks, setTopTracks] = useState([]);
@@ -245,6 +246,16 @@ function ArtistPage({
 
   return (
     <div className="artistPage">
+      <button
+        type="button"
+        className="artistBackButton"
+        aria-label="Go back"
+        onClick={() => {
+          navigate(-1);
+        }}
+      >
+        ←
+      </button>
       {loading ? <p>Loading artist...</p> : null}
       {error ? <p className="authError">{error}</p> : null}
 

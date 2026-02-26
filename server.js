@@ -456,6 +456,31 @@ async function ensureCoreTables() {
     CREATE INDEX IF NOT EXISTS app_users_username_idx
     ON app_users (LOWER(username))
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS community_submissions (
+      id SERIAL PRIMARY KEY,
+      app_user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+      item_type TEXT NOT NULL,
+      item_name TEXT NOT NULL,
+      artist_name TEXT,
+      release_date DATE,
+      image_url TEXT,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS community_submissions_owner_idx
+    ON community_submissions (app_user_id, created_at DESC)
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS community_submissions_status_idx
+    ON community_submissions (status, created_at DESC)
+  `);
 }
 
 app.use(cors());
@@ -782,6 +807,68 @@ app.get("/api/users/search", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("search users error", error);
     return res.status(500).json({ error: "Failed to search users" });
+  }
+});
+
+app.post("/api/community/submissions", requireAuth, async (req, res) => {
+  const itemType = String(req.body.item_type || "").trim().toLowerCase();
+  const itemName = String(req.body.item_name || "").trim();
+  const artistName = String(req.body.artist_name || "").trim();
+  const releaseDateRaw = String(req.body.release_date || "").trim();
+  const imageUrl = String(req.body.image_url || "").trim();
+  const notes = String(req.body.notes || "").trim();
+
+  if (!["album", "artist", "track"].includes(itemType)) {
+    return res.status(400).json({ error: "item_type must be album, artist, or track" });
+  }
+
+  if (!itemName) {
+    return res.status(400).json({ error: "Name is required" });
+  }
+
+  if (itemName.length > 180 || artistName.length > 180) {
+    return res.status(400).json({ error: "Name fields must be 180 characters or fewer" });
+  }
+
+  if (notes.length > 2000) {
+    return res.status(400).json({ error: "Notes must be 2000 characters or fewer" });
+  }
+
+  const releaseDate = releaseDateRaw ? new Date(releaseDateRaw) : null;
+  if (releaseDateRaw && Number.isNaN(releaseDate.getTime())) {
+    return res.status(400).json({ error: "Invalid release date" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO community_submissions (
+        app_user_id,
+        item_type,
+        item_name,
+        artist_name,
+        release_date,
+        image_url,
+        notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, app_user_id, item_type, item_name, artist_name, release_date, image_url, notes, status, created_at
+      `,
+      [
+        req.appUserId,
+        itemType,
+        itemName,
+        artistName || null,
+        releaseDateRaw || null,
+        imageUrl || null,
+        notes || null,
+      ]
+    );
+
+    return res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("create community submission error", error);
+    return res.status(500).json({ error: "Failed to submit entry" });
   }
 });
 

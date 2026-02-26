@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import ArtistLinks from "./artist-links";
 import "./album.css";
 
@@ -15,6 +15,7 @@ function AlbumPage({
   openReviewEditor,
   getAverageRating,
 }) {
+  const navigate = useNavigate();
   const { albumId } = useParams();
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +110,16 @@ function AlbumPage({
 
   return (
     <div className="albumPage">
+      <button
+        type="button"
+        className="albumBackLink"
+        aria-label="Go back"
+        onClick={() => {
+          navigate(-1);
+        }}
+      >
+        ←
+      </button>
       {loading ? <p>Loading album...</p> : null}
       {error ? <p className="authError">{error}</p> : null}
 

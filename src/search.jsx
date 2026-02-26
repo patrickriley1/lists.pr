@@ -44,6 +44,7 @@ function SearchPage({
   reviewByKey,
   openReviewEditor,
   searchUsers,
+  submitCommunitySubmission,
 }) {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
@@ -52,6 +53,18 @@ function SearchPage({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+  const [contributionOpen, setContributionOpen] = useState(false);
+  const [contributionSaving, setContributionSaving] = useState(false);
+  const [contributionError, setContributionError] = useState("");
+  const [contributionSuccess, setContributionSuccess] = useState("");
+  const [contributionForm, setContributionForm] = useState({
+    item_type: "album",
+    item_name: "",
+    artist_name: "",
+    release_date: "",
+    image_url: "",
+    notes: "",
+  });
   const listenLaterByKey = (listenLaterItems || []).reduce((acc, entry) => {
     acc[`${entry.item_type}:${entry.item_id}`] = entry;
     return acc;
@@ -147,6 +160,54 @@ function SearchPage({
         ) : null}
       </div>
     );
+  }
+
+  function getContributionPromptLabel() {
+    if (searchType === "track") return "song";
+    if (searchType === "artist") return "artist";
+    if (searchType === "album") return "album";
+    return "music";
+  }
+
+  function openContributionModal() {
+    const defaultItemType = ["album", "artist", "track"].includes(searchType) ? searchType : "album";
+    setContributionForm({
+      item_type: defaultItemType,
+      item_name: search.trim() || "",
+      artist_name: "",
+      release_date: "",
+      image_url: "",
+      notes: "",
+    });
+    setContributionError("");
+    setContributionSuccess("");
+    setContributionOpen(true);
+  }
+
+  async function submitContribution(event) {
+    event.preventDefault();
+    if (typeof submitCommunitySubmission !== "function") return;
+
+    setContributionSaving(true);
+    setContributionError("");
+    setContributionSuccess("");
+
+    try {
+      await submitCommunitySubmission({
+        item_type: contributionForm.item_type,
+        item_name: contributionForm.item_name.trim(),
+        artist_name: contributionForm.artist_name.trim(),
+        release_date: contributionForm.release_date,
+        image_url: contributionForm.image_url.trim(),
+        notes: contributionForm.notes.trim(),
+      });
+      setContributionSuccess("Thanks. Your submission is in review.");
+      setContributionForm((prev) => ({ ...prev, item_name: "", artist_name: "", release_date: "", image_url: "", notes: "" }));
+    } catch (error) {
+      setContributionError(error.message || "Could not submit right now.");
+    } finally {
+      setContributionSaving(false);
+    }
   }
 
   if (!canUseApp) {
@@ -317,6 +378,116 @@ function SearchPage({
           );
         })}
       </div>
+
+      <div className="contributionPromptCard">
+        <p>Can&apos;t find the {getContributionPromptLabel()} you&apos;re looking for?</p>
+        <button type="button" onClick={openContributionModal}>
+          Submit it to the database
+        </button>
+      </div>
+
+      {contributionOpen ? (
+        <div
+          className="contributionModalBackdrop"
+          onClick={() => {
+            setContributionOpen(false);
+          }}
+        >
+          <div
+            className="contributionModalCard"
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <h3>Add Missing Music</h3>
+            <form className="contributionForm" onSubmit={(event) => void submitContribution(event)}>
+              <label>
+                Type
+                <select
+                  value={contributionForm.item_type}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, item_type: event.target.value }));
+                  }}
+                >
+                  <option value="album">Album</option>
+                  <option value="track">Song</option>
+                  <option value="artist">Artist</option>
+                </select>
+              </label>
+              <label>
+                Name
+                <input
+                  type="text"
+                  value={contributionForm.item_name}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, item_name: event.target.value }));
+                  }}
+                  placeholder="Name"
+                  required
+                />
+              </label>
+              <label>
+                Artist Name
+                <input
+                  type="text"
+                  value={contributionForm.artist_name}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, artist_name: event.target.value }));
+                  }}
+                  placeholder="Artist (optional)"
+                />
+              </label>
+              <label>
+                Release Date
+                <input
+                  type="date"
+                  value={contributionForm.release_date}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, release_date: event.target.value }));
+                  }}
+                />
+              </label>
+              <label>
+                Cover/Image URL
+                <input
+                  type="url"
+                  value={contributionForm.image_url}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, image_url: event.target.value }));
+                  }}
+                  placeholder="https://..."
+                />
+              </label>
+              <label>
+                Notes
+                <textarea
+                  value={contributionForm.notes}
+                  onChange={(event) => {
+                    setContributionForm((prev) => ({ ...prev, notes: event.target.value }));
+                  }}
+                  placeholder="Optional context or source"
+                />
+              </label>
+              {contributionError ? <p className="authError">{contributionError}</p> : null}
+              {contributionSuccess ? <p className="contributionSuccess">{contributionSuccess}</p> : null}
+              <div className="contributionActions">
+                <button type="submit" disabled={contributionSaving}>
+                  {contributionSaving ? "Submitting..." : "Submit"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContributionOpen(false);
+                  }}
+                  disabled={contributionSaving}
+                >
+                  Close
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

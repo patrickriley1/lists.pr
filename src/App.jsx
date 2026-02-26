@@ -658,6 +658,21 @@ function App() {
     return response.json();
   }
 
+  async function submitCommunitySubmission(payload) {
+    const response = await fetch(`${apiBaseURL}/api/community/submissions`, {
+      method: "POST",
+      headers: withAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to submit");
+    }
+
+    return data;
+  }
+
   async function getUserProfile(username) {
     const response = await fetch(`${apiBaseURL}/api/users/${encodeURIComponent(username)}/profile`, {
       headers: withAuthHeaders(),
@@ -942,7 +957,7 @@ function App() {
                         setExpandedHomeListIds((prev) => ({ ...prev, [entry.id]: !prev[entry.id] }));
                       }}
                     >
-                      {isListExpanded ? "Show preview" : "Show full list"}
+                      {isListExpanded ? "Collapse" : "Show full list"}
                     </button>
                   ) : null}
                 </div>
@@ -1019,6 +1034,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 searchUsers={searchUsers}
+                submitCommunitySubmission={submitCommunitySubmission}
               />
             }
           />

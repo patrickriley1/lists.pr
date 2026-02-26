@@ -50,6 +50,7 @@ function SearchPage({
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState("album");
   const [results, setResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
@@ -75,6 +76,7 @@ function SearchPage({
 
     setSearchLoading(true);
     setSearchError("");
+    setHasSearched(true);
 
     try {
       if (searchType === "user") {
@@ -162,13 +164,6 @@ function SearchPage({
     );
   }
 
-  function getContributionPromptLabel() {
-    if (searchType === "track") return "song";
-    if (searchType === "artist") return "artist";
-    if (searchType === "album") return "album";
-    return "music";
-  }
-
   function openContributionModal() {
     const defaultItemType = ["album", "artist", "track"].includes(searchType) ? searchType : "album";
     setContributionForm({
@@ -224,6 +219,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("album");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Album Search
@@ -234,6 +230,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("track");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Song Search
@@ -244,6 +241,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("artist");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           Artist Search
@@ -254,6 +252,7 @@ function SearchPage({
           onClick={() => {
             setSearchType("user");
             setResults([]);
+            setHasSearched(false);
           }}
         >
           User Search
@@ -379,12 +378,14 @@ function SearchPage({
         })}
       </div>
 
-      <div className="contributionPromptCard">
-        <p>Can&apos;t find the {getContributionPromptLabel()} you&apos;re looking for?</p>
-        <button type="button" onClick={openContributionModal}>
-          Submit it to the database
-        </button>
-      </div>
+      {searchType === "album" && hasSearched ? (
+        <div className="contributionPromptCard">
+          <p>Can&apos;t find the album you&apos;re looking for?</p>
+          <button type="button" onClick={openContributionModal}>
+            Submit it to the database
+          </button>
+        </div>
+      ) : null}
 
       {contributionOpen ? (
         <div

@@ -236,6 +236,69 @@
   border: 1px dashed #2f2f2f;
 }
 
+.artistRecentRatings {
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.artistRecentRatings h3 {
+  margin: 0;
+  color: var(--light);
+}
+
+.artistRecentRatingRow {
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.artistRecentRatingUser {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.artistRecentRatingUser img,
+.artistRecentRatingAvatarFallback {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.artistRecentRatingUser img {
+  object-fit: cover;
+  border: 1px solid #2a2a2a;
+}
+
+.artistRecentRatingAvatarFallback {
+  border: 1px dashed #2a2a2a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #d4d4d4;
+}
+
+.artistRecentRatingUser p,
+.artistRecentRatingMeta p {
+  margin: 0;
+}
+
+.artistRecentRatingMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: right;
+}
+
 @media (max-width: 900px) {
   .artistBodyColumns {
     grid-template-columns: 1fr;
@@ -255,5 +318,13 @@
     width: min(220px, 100%);
     height: auto;
     aspect-ratio: 1;
+  }
+
+  .artistRecentRatingRow {
+    grid-template-columns: 1fr;
+  }
+
+  .artistRecentRatingMeta {
+    text-align: left;
   }
 }

@@ -642,6 +642,18 @@ function App() {
     return response.json();
   }
 
+  async function getRecentRatings(itemType, itemId, limit = 8) {
+    const response = await fetch(
+      `${apiBaseURL}/api/ratings/recent?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&limit=${encodeURIComponent(limit)}`,
+      {
+        headers: withAuthHeaders(),
+      }
+    );
+
+    if (!response.ok) return [];
+    return response.json();
+  }
+
   async function getCharts(itemType, limit = 50) {
     const response = await fetch(
       `${apiBaseURL}/api/charts?item_type=${encodeURIComponent(itemType)}&limit=${encodeURIComponent(limit)}`,
@@ -1094,6 +1106,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+                getRecentRatings={getRecentRatings}
               />
             }
           />
@@ -1109,6 +1122,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+                getRecentRatings={getRecentRatings}
               />
             }
           />

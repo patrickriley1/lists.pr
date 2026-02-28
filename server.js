@@ -1440,6 +1440,49 @@ app.get("/api/ratings/average", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/ratings/recent", requireAuth, async (req, res) => {
+  const itemType = String(req.query.item_type || "").trim();
+  const itemId = String(req.query.item_id || "").trim();
+  const limit = Math.min(25, Math.max(1, Number(req.query.limit || 8)));
+
+  if (!["album", "track", "artist"].includes(itemType) || !itemId) {
+    return res.status(400).json({ error: "item_type and item_id are required" });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        r.id,
+        r.app_user_id,
+        r.item_type,
+        r.item_id,
+        r.rating,
+        r.review_title,
+        r.review_body,
+        r.item_name,
+        r.item_subtitle,
+        r.image_url,
+        r.created_at,
+        r.updated_at,
+        au.username,
+        au.profile_image_url AS user_profile_image_url
+      FROM ratings r
+      JOIN app_users au ON au.id = r.app_user_id
+      WHERE r.item_type = $1 AND r.item_id = $2
+      ORDER BY r.updated_at DESC, r.created_at DESC
+      LIMIT $3
+      `,
+      [itemType, itemId, limit]
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    console.error("get recent ratings error", error);
+    return res.status(500).json({ error: "Failed to fetch recent ratings" });
+  }
+});
+
 app.get("/api/charts", requireAuth, async (req, res) => {
   const itemType = String(req.query.item_type || "").trim();
   const limit = Math.min(100, Math.max(1, Number(req.query.limit || 50)));

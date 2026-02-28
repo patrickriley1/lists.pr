@@ -68,6 +68,7 @@ function App() {
     );
   }
 
+  //This here handles the logout function (it clears all user data from the local storage)
   function clearAuthState() {
     setAuthToken("");
     setAuthUser(null);
@@ -88,11 +89,13 @@ function App() {
     localStorage.removeItem("app_auth_user");
   }
 
+  //Calls the function above, navigates to the homepage
   function logout() {
     clearAuthState();
     navigate("/");
   }
 
+  
   async function submitAuth(event) {
     event.preventDefault();
     setAuthError("");

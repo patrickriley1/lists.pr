@@ -47,13 +47,19 @@ function SearchPage({
   submitCommunitySubmission,
 }) {
   const navigate = useNavigate();
+  //variable for search input
   const [search, setSearch] = useState("");
+  //variable for selecting search type
   const [searchType, setSearchType] = useState("album");
+  //variable for an array of search results (set after search button is clicked)
   const [results, setResults] = useState([]);
+  //variable to track if user has clicked search (for message )
   const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  //variable to keep track of which "add to list" button has been opened (stores an id for the item)
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
+  //bool variable for tracking if contribution menu is open
   const [contributionOpen, setContributionOpen] = useState(false);
   const [contributionSaving, setContributionSaving] = useState(false);
   const [contributionError, setContributionError] = useState("");

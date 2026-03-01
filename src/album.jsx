@@ -40,7 +40,7 @@ function AlbumPage({
         : Promise.resolve(null);
     const recentRatingsRequest =
       typeof getRecentRatings === "function"
-        ? getRecentRatings("album", albumId, 10).catch(() => [])
+        ? getRecentRatings("album", albumId, 8).catch(() => [])
         : Promise.resolve([]);
 
     Promise.all([

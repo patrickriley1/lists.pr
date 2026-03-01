@@ -263,7 +263,7 @@
   text-align: right;
 }
 
-.usernameRecentReviews {
+.usernameRecentReviews Link{
   text-decoration: none;
   color: var(--light);
 }

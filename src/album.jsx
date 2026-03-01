@@ -40,7 +40,7 @@ function AlbumPage({
         : Promise.resolve(null);
     const recentRatingsRequest =
       typeof getRecentRatings === "function"
-        ? getRecentRatings("album", albumId, 8).catch(() => [])
+        ? getRecentRatings("album", albumId, 10).catch(() => [])
         : Promise.resolve([]);
 
     Promise.all([
@@ -258,7 +258,7 @@ function AlbumPage({
                       {(entry.username || "U").slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <div>
+                  <div className="usernameRecentReviews">
                     {entry.username ? <Link to={`/user/${entry.username}`}>{entry.username}</Link> : <p>Unknown user</p>}
                     <p>{new Date(entry.updated_at || entry.created_at).toLocaleDateString()}</p>
                   </div>

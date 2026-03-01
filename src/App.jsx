@@ -642,7 +642,7 @@ function App() {
     return response.json();
   }
 
-  async function getRecentRatings(itemType, itemId, limit = 8) {
+  async function getRecentRatings(itemType, itemId, limit = 10) {
     const response = await fetch(
       `${apiBaseURL}/api/ratings/recent?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&limit=${encodeURIComponent(limit)}`,
       {

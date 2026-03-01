@@ -263,6 +263,11 @@
   text-align: right;
 }
 
+.usernameRecentReviews {
+  text-decoration: none;
+  color: var(--light);
+}
+
 @media (max-width: 768px) {
   .albumHeroRow {
     flex-direction: column;
@@ -311,3 +316,4 @@
     text-align: left;
   }
 }
+

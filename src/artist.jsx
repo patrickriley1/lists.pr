@@ -154,7 +154,7 @@ function ArtistPage({
           })
         ),
         typeof getRecentRatings === "function"
-          ? getRecentRatings("artist", resolvedArtistId, 8).catch(() => [])
+          ? getRecentRatings("artist", resolvedArtistId, 10).catch(() => [])
           : Promise.resolve([]),
       ]);
 

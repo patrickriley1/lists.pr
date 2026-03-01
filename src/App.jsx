@@ -650,8 +650,27 @@ function App() {
       }
     );
 
-    if (!response.ok) return [];
-    return response.json();
+    if (response.ok) {
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    }
+
+    // Backward-compatible fallback when deployed API does not yet include /api/ratings/recent.
+    const feedResponse = await fetch(`${apiBaseURL}/api/feed?limit=100`, {
+      headers: withAuthHeaders(),
+    });
+    if (!feedResponse.ok) return [];
+
+    const feedData = await feedResponse.json();
+    if (!Array.isArray(feedData)) return [];
+
+    return feedData
+      .filter(
+        (entry) =>
+          String(entry?.item_type || "") === String(itemType) &&
+          String(entry?.item_id || "") === String(itemId)
+      )
+      .slice(0, limit);
   }
 
   async function getCharts(itemType, limit = 50) {

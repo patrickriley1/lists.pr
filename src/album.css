@@ -256,16 +256,20 @@
   margin: 0;
 }
 
+.albumRecentRatingUser a {
+  color: var(--light);
+  text-decoration: none;
+}
+
+.albumRecentRatingUser a:hover {
+  color: var(--primary);
+}
+
 .albumRecentRatingMeta {
   display: flex;
   flex-direction: column;
   gap: 4px;
   text-align: right;
-}
-
-.usernameRecentReviews Link{
-  text-decoration: none;
-  color: var(--light);
 }
 
 @media (max-width: 768px) {
@@ -316,4 +320,3 @@
     text-align: left;
   }
 }
-

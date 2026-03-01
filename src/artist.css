@@ -292,6 +292,15 @@
   margin: 0;
 }
 
+.artistRecentRatingUser a {
+  color: var(--light);
+  text-decoration: none;
+}
+
+.artistRecentRatingUser a:hover {
+  color: var(--primary);
+}
+
 .artistRecentRatingMeta {
   display: flex;
   flex-direction: column;

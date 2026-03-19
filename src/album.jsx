@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import ArtistLinks from "./artist-links";
 import "./album.css";
 
@@ -14,6 +14,7 @@ function AlbumPage({
   reviewByKey,
   openReviewEditor,
   getAverageRating,
+  getRecentRatings,
 }) {
   const navigate = useNavigate();
   const { albumId } = useParams();
@@ -23,6 +24,7 @@ function AlbumPage({
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [albumAverage, setAlbumAverage] = useState({ average_rating: null, rating_count: 0 });
   const [trackAverages, setTrackAverages] = useState({});
+  const [recentRatings, setRecentRatings] = useState([]);
 
   useEffect(() => {
     if (!canUseApp || !albumId) return;
@@ -30,17 +32,23 @@ function AlbumPage({
     setLoading(true);
     setError("");
     setTrackAverages({});
+    setRecentRatings([]);
 
     const averageRequest =
       typeof getAverageRating === "function"
         ? getAverageRating("album", albumId).catch(() => null)
         : Promise.resolve(null);
+    const recentRatingsRequest =
+      typeof getRecentRatings === "function"
+        ? getRecentRatings("album", albumId, 8).catch(() => [])
+        : Promise.resolve([]);
 
     Promise.all([
       spotifyApiFetch(`/albums/${albumId}`),
       averageRequest,
+      recentRatingsRequest,
     ])
-      .then(async ([response, averageData]) => {
+      .then(async ([response, averageData, recentRatingsData]) => {
         if (!response || !response.ok) {
           throw new Error("Album request failed");
         }
@@ -50,6 +58,7 @@ function AlbumPage({
           average_rating: averageData?.average_rating ?? null,
           rating_count: Number(averageData?.rating_count || 0),
         });
+        setRecentRatings(Array.isArray(recentRatingsData) ? recentRatingsData : []);
 
         const tracks = data?.tracks?.items || [];
         if (typeof getAverageRating !== "function" || tracks.length === 0) {
@@ -83,7 +92,7 @@ function AlbumPage({
       .finally(() => {
         setLoading(false);
       });
-  }, [albumId, canUseApp, getAverageRating, spotifyApiFetch]);
+  }, [albumId, canUseApp, getAverageRating, getRecentRatings, spotifyApiFetch]);
 
   if (!canUseApp) {
     return <Navigate to="/" replace />;
@@ -235,6 +244,33 @@ function AlbumPage({
               </div>
             ))}
           </div>
+
+          <section className="albumRecentRatings">
+            <h3>Recent ratings</h3>
+            {recentRatings.length === 0 ? <p>No recent ratings yet.</p> : null}
+            {recentRatings.map((entry) => (
+              <div key={entry.id} className="albumRecentRatingRow">
+                <div className="albumRecentRatingUser">
+                  {entry.user_profile_image_url ? (
+                    <img src={entry.user_profile_image_url} alt={entry.username || "User"} />
+                  ) : (
+                    <div className="albumRecentRatingAvatarFallback">
+                      {(entry.username || "U").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="usernameRecentReviews">
+                    {entry.username ? <Link to={`/user/${entry.username}`}>{entry.username}</Link> : <p>Unknown user</p>}
+                    <p>{new Date(entry.updated_at || entry.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="albumRecentRatingMeta">
+                  <p>{entry.rating}/10</p>
+                  {entry.review_title ? <p>{entry.review_title}</p> : null}
+                  {entry.review_body ? <p>{entry.review_body}</p> : null}
+                </div>
+              </div>
+            ))}
+          </section>
         </div>
       ) : null}
     </div>

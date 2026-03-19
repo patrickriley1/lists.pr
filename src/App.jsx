@@ -642,6 +642,37 @@ function App() {
     return response.json();
   }
 
+  async function getRecentRatings(itemType, itemId, limit = 10) {
+    const response = await fetch(
+      `${apiBaseURL}/api/ratings/recent?item_type=${encodeURIComponent(itemType)}&item_id=${encodeURIComponent(itemId)}&limit=${encodeURIComponent(limit)}`,
+      {
+        headers: withAuthHeaders(),
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    }
+
+    // Backward-compatible fallback when deployed API does not yet include /api/ratings/recent.
+    const feedResponse = await fetch(`${apiBaseURL}/api/feed?limit=100`, {
+      headers: withAuthHeaders(),
+    });
+    if (!feedResponse.ok) return [];
+
+    const feedData = await feedResponse.json();
+    if (!Array.isArray(feedData)) return [];
+
+    return feedData
+      .filter(
+        (entry) =>
+          String(entry?.item_type || "") === String(itemType) &&
+          String(entry?.item_id || "") === String(itemId)
+      )
+      .slice(0, limit);
+  }
+
   async function getCharts(itemType, limit = 50) {
     const response = await fetch(
       `${apiBaseURL}/api/charts?item_type=${encodeURIComponent(itemType)}&limit=${encodeURIComponent(limit)}`,
@@ -1094,6 +1125,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+                getRecentRatings={getRecentRatings}
               />
             }
           />
@@ -1109,6 +1141,7 @@ function App() {
                 reviewByKey={reviewByKey}
                 openReviewEditor={openReviewEditor}
                 getAverageRating={getAverageRating}
+                getRecentRatings={getRecentRatings}
               />
             }
           />

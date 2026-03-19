@@ -27,6 +27,7 @@ function ArtistPage({
   reviewByKey,
   openReviewEditor,
   getAverageRating,
+  getRecentRatings,
 }) {
   const navigate = useNavigate();
   const { artistId } = useParams();
@@ -36,6 +37,7 @@ function ArtistPage({
   const [artistAverage, setArtistAverage] = useState({ average_rating: null, rating_count: 0 });
   const [trackAverages, setTrackAverages] = useState({});
   const [releaseAverages, setReleaseAverages] = useState({});
+  const [recentRatings, setRecentRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
@@ -52,6 +54,7 @@ function ArtistPage({
       setArtistAverage({ average_rating: null, rating_count: 0 });
       setTrackAverages({});
       setReleaseAverages({});
+      setRecentRatings([]);
 
       let resolvedArtistId = artistId;
       let artistResponse = await spotifyApiFetch(`/artists/${encodeURIComponent(resolvedArtistId)}`);
@@ -114,7 +117,7 @@ function ArtistPage({
 
       if (typeof getAverageRating !== "function") return;
 
-      const [artistAverageData, trackAverageEntries, releaseAverageEntries] = await Promise.all([
+      const [artistAverageData, trackAverageEntries, releaseAverageEntries, recentRatingsData] = await Promise.all([
         getAverageRating("artist", resolvedArtistId).catch(() => null),
         Promise.all(
           sortedTracks.map(async (track) => {
@@ -150,6 +153,9 @@ function ArtistPage({
             }
           })
         ),
+        typeof getRecentRatings === "function"
+          ? getRecentRatings("artist", resolvedArtistId, 10).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setArtistAverage({
@@ -158,6 +164,7 @@ function ArtistPage({
       });
       setTrackAverages(Object.fromEntries((trackAverageEntries || []).filter(Boolean)));
       setReleaseAverages(Object.fromEntries((releaseAverageEntries || []).filter(Boolean)));
+      setRecentRatings(Array.isArray(recentRatingsData) ? recentRatingsData : []);
     }
 
     fetchArtistPage()
@@ -167,7 +174,7 @@ function ArtistPage({
       .finally(() => {
         setLoading(false);
       });
-  }, [artistId, canUseApp, getAverageRating, spotifyApiFetch]);
+  }, [artistId, canUseApp, getAverageRating, getRecentRatings, spotifyApiFetch]);
 
   const artistPayload = artist
     ? {
@@ -385,6 +392,33 @@ function ArtistPage({
               {compilations.length === 0 ? <p>No compilations found.</p> : renderReleaseSection(compilations)}
             </section>
           </div>
+
+          <section className="artistRecentRatings">
+            <h3>Recent ratings</h3>
+            {recentRatings.length === 0 ? <p>No recent ratings yet.</p> : null}
+            {recentRatings.map((entry) => (
+              <div key={entry.id} className="artistRecentRatingRow">
+                <div className="artistRecentRatingUser">
+                  {entry.user_profile_image_url ? (
+                    <img src={entry.user_profile_image_url} alt={entry.username || "User"} />
+                  ) : (
+                    <div className="artistRecentRatingAvatarFallback">
+                      {(entry.username || "U").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    {entry.username ? <Link to={`/user/${entry.username}`}>{entry.username}</Link> : <p>Unknown user</p>}
+                    <p>{new Date(entry.updated_at || entry.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="artistRecentRatingMeta">
+                  <p>{entry.rating}/10</p>
+                  {entry.review_title ? <p>{entry.review_title}</p> : null}
+                  {entry.review_body ? <p>{entry.review_body}</p> : null}
+                </div>
+              </div>
+            ))}
+          </section>
         </div>
       ) : null}
     </div>

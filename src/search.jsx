@@ -150,7 +150,7 @@ function SearchPage({
                   setAddToListOpenFor(null);
                 }}
               >
-                {index + 1}. {list.name}
+                {list.name}
               </button>
             ))}
             <button

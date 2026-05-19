@@ -671,6 +671,7 @@ app.get("/api/listen-later", requireAuth, async (req, res) => {
 
 app.get("/api/feed", requireAuth, async (req, res) => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit || 30)));
+  const offset = Math.max(0, Number(req.query.offset || 0));
 
   try {
     const result = await pool.query(
@@ -704,9 +705,9 @@ app.get("/api/feed", requireAuth, async (req, res) => {
         GROUP BY review_id
       ) lc ON lc.review_id = r.id
       ORDER BY r.updated_at DESC, r.created_at DESC
-      LIMIT $2
+      LIMIT $2 OFFSET $3
       `,
-      [req.appUserId, limit]
+      [req.appUserId, limit, offset]
     );
 
     return res.json(result.rows);

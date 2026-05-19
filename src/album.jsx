@@ -1,28 +1,36 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { useData } from "./context/DataContext";
+import { useSpotify } from "./context/SpotifyContext";
 import ArtistLinks from "./artist-links";
 import "./album.css";
 
-function AlbumPage({
-  canUseApp,
-  spotifyApiFetch,
-  userLists,
-  createNewList,
-  addItemToList,
-  addToListenLater,
-  listenLaterItems,
-  reviewByKey,
-  openReviewEditor,
-  getAverageRating,
-  getRecentRatings,
-}) {
+function AlbumPage() {
   const navigate = useNavigate();
   const { albumId } = useParams();
+  const { canUseApp } = useAuth();
+  const {
+    userLists,
+    createNewList,
+    addItemToList,
+    addToListenLater,
+    listenLaterItems,
+    reviewByKey,
+    openReviewEditor,
+    getAverageRating,
+    getRecentRatings,
+  } = useData();
+  const { spotifyApiFetch } = useSpotify();
+
   const [album, setAlbum] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
-  const [albumAverage, setAlbumAverage] = useState({ average_rating: null, rating_count: 0 });
+  const [albumAverage, setAlbumAverage] = useState({
+    average_rating: null,
+    rating_count: 0,
+  });
   const [trackAverages, setTrackAverages] = useState({});
   const [recentRatings, setRecentRatings] = useState([]);
 
@@ -34,24 +42,13 @@ function AlbumPage({
     setTrackAverages({});
     setRecentRatings([]);
 
-    const averageRequest =
-      typeof getAverageRating === "function"
-        ? getAverageRating("album", albumId).catch(() => null)
-        : Promise.resolve(null);
-    const recentRatingsRequest =
-      typeof getRecentRatings === "function"
-        ? getRecentRatings("album", albumId, 8).catch(() => [])
-        : Promise.resolve([]);
-
     Promise.all([
       spotifyApiFetch(`/albums/${albumId}`),
-      averageRequest,
-      recentRatingsRequest,
+      getAverageRating("album", albumId).catch(() => null),
+      getRecentRatings("album", albumId, 8).catch(() => []),
     ])
       .then(async ([response, averageData, recentRatingsData]) => {
-        if (!response || !response.ok) {
-          throw new Error("Album request failed");
-        }
+        if (!response || !response.ok) throw new Error("Album request failed");
         const data = await response.json();
         setAlbum(data);
         setAlbumAverage({
@@ -61,7 +58,7 @@ function AlbumPage({
         setRecentRatings(Array.isArray(recentRatingsData) ? recentRatingsData : []);
 
         const tracks = data?.tracks?.items || [];
-        if (typeof getAverageRating !== "function" || tracks.length === 0) {
+        if (tracks.length === 0) {
           setTrackAverages({});
           return;
         }
@@ -83,7 +80,6 @@ function AlbumPage({
             }
           })
         );
-
         setTrackAverages(Object.fromEntries(trackAverageEntries.filter(Boolean)));
       })
       .catch(() => {
@@ -92,7 +88,7 @@ function AlbumPage({
       .finally(() => {
         setLoading(false);
       });
-  }, [albumId, canUseApp, getAverageRating, getRecentRatings, spotifyApiFetch]);
+  }, [albumId, canUseApp]);
 
   if (!canUseApp) {
     return <Navigate to="/" replace />;
@@ -123,9 +119,7 @@ function AlbumPage({
         type="button"
         className="albumBackLink"
         aria-label="Go back"
-        onClick={() => {
-          navigate(-1);
-        }}
+        onClick={() => navigate(-1)}
       >
         ←
       </button>
@@ -135,7 +129,11 @@ function AlbumPage({
       {!loading && !error && album ? (
         <div className="albumDetailLayout">
           <div className="albumHeroRow">
-            <img src={album.images?.[0]?.url} alt={album.name} className="albumCoverLarge" />
+            <img
+              src={album.images?.[0]?.url}
+              alt={album.name}
+              className="albumCoverLarge"
+            />
 
             <div className="albumMeta">
               <div className="albumTitleRow">
@@ -144,15 +142,15 @@ function AlbumPage({
                   <div className="albumAddListMenuWrap">
                     <button
                       type="button"
-                      onClick={() => {
-                        setAddToListOpen((prev) => !prev);
-                      }}
+                      onClick={() => setAddToListOpen((prev) => !prev)}
                     >
                       Add to List
                     </button>
                     {addToListOpen ? (
                       <div className="albumAddListDropdown">
-                        {userLists.length === 0 ? <p className="dropdownEmpty">No lists yet.</p> : null}
+                        {userLists.length === 0 ? (
+                          <p className="dropdownEmpty">No lists yet.</p>
+                        ) : null}
                         {userLists.map((list, index) => (
                           <button
                             key={list.id}
@@ -214,8 +212,13 @@ function AlbumPage({
 
           <div className="albumTrackRows">
             {tracks.map((track, index) => (
-              <div key={track.id || `${track.name}-${index}`} className="albumTrackRow">
-                <span className="albumTrackNumber">{track.track_number || index + 1}</span>
+              <div
+                key={track.id || `${track.name}-${index}`}
+                className="albumTrackRow"
+              >
+                <span className="albumTrackNumber">
+                  {track.track_number || index + 1}
+                </span>
                 <span className="albumTrackTitle">{track.name}</span>
                 <div className="albumTrackActions">
                   <span className="albumTrackAverage">
@@ -231,7 +234,10 @@ function AlbumPage({
                         item_type: "track",
                         item_id: track.id,
                         item_name: track.name,
-                        item_subtitle: track.artists?.map((artist) => artist.name).join(", ") || artists,
+                        item_subtitle:
+                          track.artists
+                            ?.map((artist) => artist.name)
+                            .join(", ") || artists,
                         image_url: album.images?.[0]?.url || null,
                       });
                     }}
@@ -252,15 +258,26 @@ function AlbumPage({
               <div key={entry.id} className="albumRecentRatingRow">
                 <div className="albumRecentRatingUser">
                   {entry.user_profile_image_url ? (
-                    <img src={entry.user_profile_image_url} alt={entry.username || "User"} />
+                    <img
+                      src={entry.user_profile_image_url}
+                      alt={entry.username || "User"}
+                    />
                   ) : (
                     <div className="albumRecentRatingAvatarFallback">
                       {(entry.username || "U").slice(0, 1).toUpperCase()}
                     </div>
                   )}
                   <div className="usernameRecentReviews">
-                    {entry.username ? <Link to={`/user/${entry.username}`}>{entry.username}</Link> : <p>Unknown user</p>}
-                    <p>{new Date(entry.updated_at || entry.created_at).toLocaleDateString()}</p>
+                    {entry.username ? (
+                      <Link to={`/user/${entry.username}`}>{entry.username}</Link>
+                    ) : (
+                      <p>Unknown user</p>
+                    )}
+                    <p>
+                      {new Date(
+                        entry.updated_at || entry.created_at
+                      ).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
                 <div className="albumRecentRatingMeta">

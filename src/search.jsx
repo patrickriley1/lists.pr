@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { useData } from "./context/DataContext";
+import { useSpotify } from "./context/SpotifyContext";
 import ArtistLinks from "./artist-links";
 import "./search.css";
 
@@ -33,33 +36,29 @@ function buildItemPayload(item, searchType) {
   };
 }
 
-function SearchPage({
-  canUseApp,
-  spotifyApiFetch,
-  userLists,
-  createNewList,
-  addItemToList,
-  addToListenLater,
-  listenLaterItems,
-  reviewByKey,
-  openReviewEditor,
-  searchUsers,
-  submitCommunitySubmission,
-}) {
+function SearchPage() {
   const navigate = useNavigate();
-  //variable for search input
+  const { canUseApp } = useAuth();
+  const {
+    userLists,
+    createNewList,
+    addItemToList,
+    addToListenLater,
+    listenLaterItems,
+    reviewByKey,
+    openReviewEditor,
+    searchUsers,
+    submitCommunitySubmission,
+  } = useData();
+  const { spotifyApiFetch } = useSpotify();
+
   const [search, setSearch] = useState("");
-  //variable for selecting search type
   const [searchType, setSearchType] = useState("album");
-  //variable for an array of search results (set after search button is clicked)
   const [results, setResults] = useState([]);
-  //variable to track if user has clicked search (for message )
   const [hasSearched, setHasSearched] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
-  //variable to keep track of which "add to list" button has been opened (stores an id for the item)
   const [addToListOpenFor, setAddToListOpenFor] = useState(null);
-  //bool variable for tracking if contribution menu is open
   const [contributionOpen, setContributionOpen] = useState(false);
   const [contributionSaving, setContributionSaving] = useState(false);
   const [contributionError, setContributionError] = useState("");
@@ -72,6 +71,7 @@ function SearchPage({
     image_url: "",
     notes: "",
   });
+
   const listenLaterByKey = (listenLaterItems || []).reduce((acc, entry) => {
     acc[`${entry.item_type}:${entry.item_id}`] = entry;
     return acc;
@@ -91,7 +91,9 @@ function SearchPage({
         return;
       }
 
-      const response = await spotifyApiFetch(`/search?q=${encodeURIComponent(search)}&type=${searchType}`);
+      const response = await spotifyApiFetch(
+        `/search?q=${encodeURIComponent(search)}&type=${searchType}`
+      );
 
       if (!response) {
         setSearchError("Spotify API unavailable. Please try again.");
@@ -109,12 +111,10 @@ function SearchPage({
         setResults(data.albums?.items || []);
         return;
       }
-
       if (searchType === "track") {
         setResults(data.tracks?.items || []);
         return;
       }
-
       setResults(data.artists?.items || []);
     } catch {
       setSearchError("Search failed. Check your connection and try again.");
@@ -140,8 +140,10 @@ function SearchPage({
 
         {addToListOpenFor === menuKey ? (
           <div className="addListDropdown" onClick={(e) => e.stopPropagation()}>
-            {userLists.length === 0 ? <p className="dropdownEmpty">No lists yet.</p> : null}
-            {userLists.map((list, index) => (
+            {userLists.length === 0 ? (
+              <p className="dropdownEmpty">No lists yet.</p>
+            ) : null}
+            {userLists.map((list) => (
               <button
                 key={list.id}
                 type="button"
@@ -171,7 +173,9 @@ function SearchPage({
   }
 
   function openContributionModal() {
-    const defaultItemType = ["album", "artist", "track"].includes(searchType) ? searchType : "album";
+    const defaultItemType = ["album", "artist", "track"].includes(searchType)
+      ? searchType
+      : "album";
     setContributionForm({
       item_type: defaultItemType,
       item_name: search.trim() || "",
@@ -187,8 +191,6 @@ function SearchPage({
 
   async function submitContribution(event) {
     event.preventDefault();
-    if (typeof submitCommunitySubmission !== "function") return;
-
     setContributionSaving(true);
     setContributionError("");
     setContributionSuccess("");
@@ -203,7 +205,14 @@ function SearchPage({
         notes: contributionForm.notes.trim(),
       });
       setContributionSuccess("Thanks. Your submission is in review.");
-      setContributionForm((prev) => ({ ...prev, item_name: "", artist_name: "", release_date: "", image_url: "", notes: "" }));
+      setContributionForm((prev) => ({
+        ...prev,
+        item_name: "",
+        artist_name: "",
+        release_date: "",
+        image_url: "",
+        notes: "",
+      }));
     } catch (error) {
       setContributionError(error.message || "Could not submit right now.");
     } finally {
@@ -219,50 +228,26 @@ function SearchPage({
     <div className="searchSection">
       <h2 className="pageTitle">Search</h2>
       <div className="searchCards">
-        <button
-          className={`searchCard ${searchType === "album" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setSearchType("album");
-            setResults([]);
-            setHasSearched(false);
-          }}
-        >
-          Album Search
-        </button>
-        <button
-          className={`searchCard ${searchType === "track" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setSearchType("track");
-            setResults([]);
-            setHasSearched(false);
-          }}
-        >
-          Song Search
-        </button>
-        <button
-          className={`searchCard ${searchType === "artist" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setSearchType("artist");
-            setResults([]);
-            setHasSearched(false);
-          }}
-        >
-          Artist Search
-        </button>
-        <button
-          className={`searchCard ${searchType === "user" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setSearchType("user");
-            setResults([]);
-            setHasSearched(false);
-          }}
-        >
-          User Search
-        </button>
+        {["album", "track", "artist", "user"].map((type) => (
+          <button
+            key={type}
+            className={`searchCard ${searchType === type ? "active" : ""}`}
+            type="button"
+            onClick={() => {
+              setSearchType(type);
+              setResults([]);
+              setHasSearched(false);
+            }}
+          >
+            {type === "album"
+              ? "Album Search"
+              : type === "track"
+              ? "Song Search"
+              : type === "artist"
+              ? "Artist Search"
+              : "User Search"}
+          </button>
+        ))}
       </div>
 
       <form
@@ -295,15 +280,9 @@ function SearchPage({
               key={isUser ? item.username : item.id}
               className="resultItem"
               onClick={() => {
-                if (isAlbum) {
-                  navigate(`/album/${item.id}`);
-                }
-                if (isUser) {
-                  navigate(`/user/${item.username}`);
-                }
-                if (isArtist) {
-                  navigate(`/artist/${item.id}`);
-                }
+                if (isAlbum) navigate(`/album/${item.id}`);
+                if (isUser) navigate(`/user/${item.username}`);
+                if (isArtist) navigate(`/artist/${item.id}`);
               }}
             >
               <div className="resultTopRow">
@@ -318,17 +297,29 @@ function SearchPage({
                         height="80"
                       />
                     ) : (
-                      <div className="resultUserAvatar">{item.username?.[0]?.toUpperCase() || "U"}</div>
+                      <div className="resultUserAvatar">
+                        {item.username?.[0]?.toUpperCase() || "U"}
+                      </div>
                     )
                   ) : (
-                    <img src={searchType === "track" ? item.album?.images?.[0]?.url : item.images?.[0]?.url} width="80" />
+                    <img
+                      src={
+                        searchType === "track"
+                          ? item.album?.images?.[0]?.url
+                          : item.images?.[0]?.url
+                      }
+                      width="80"
+                    />
                   )}
                   <div className="resultInfo">
                     <p>
                       {isUser ? (
                         item.username
                       ) : isAlbum ? (
-                        <Link to={`/album/${item.id}`} onClick={(event) => event.stopPropagation()}>
+                        <Link
+                          to={`/album/${item.id}`}
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           {item.name}
                         </Link>
                       ) : (
@@ -336,11 +327,13 @@ function SearchPage({
                       )}
                     </p>
                     <p>
-                      {isUser
-                        ? "User"
-                        : searchType === "artist"
-                          ? "Artist"
-                          : <ArtistLinks artists={item.artists} />}
+                      {isUser ? (
+                        "User"
+                      ) : searchType === "artist" ? (
+                        "Artist"
+                      ) : (
+                        <ArtistLinks artists={item.artists} />
+                      )}
                     </p>
                   </div>
                 </div>
@@ -357,22 +350,26 @@ function SearchPage({
                             void addToListenLater(buildItemPayload(item, searchType));
                           }}
                         >
-                          {listenLaterByKey[`${searchType}:${item.id}`] ? "Queued" : "Listen Later"}
+                          {listenLaterByKey[`${searchType}:${item.id}`]
+                            ? "Queued"
+                            : "Listen Later"}
                         </button>
                       </div>
                     ) : null}
                     <div className="resultActions">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openReviewEditor(buildItemPayload(item, searchType));
-                          }}
-                        >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openReviewEditor(buildItemPayload(item, searchType));
+                        }}
+                      >
                         {(() => {
-                          const itemType = searchType === "track" ? "track" : searchType;
-                          const review = reviewByKey[`${itemType}:${item.id}`];
-                          return review?.rating ? `Rated: ${review.rating}/10` : "Review";
+                          const review =
+                            reviewByKey[`${searchType}:${item.id}`];
+                          return review?.rating
+                            ? `Rated: ${review.rating}/10`
+                            : "Review";
                         })()}
                       </button>
                     </div>
@@ -396,25 +393,27 @@ function SearchPage({
       {contributionOpen ? (
         <div
           className="contributionModalBackdrop"
-          onClick={() => {
-            setContributionOpen(false);
-          }}
+          onClick={() => setContributionOpen(false)}
         >
           <div
             className="contributionModalCard"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
+            onClick={(event) => event.stopPropagation()}
           >
             <h3>Add Missing Music</h3>
-            <form className="contributionForm" onSubmit={(event) => void submitContribution(event)}>
+            <form
+              className="contributionForm"
+              onSubmit={(event) => void submitContribution(event)}
+            >
               <label>
                 Type
                 <select
                   value={contributionForm.item_type}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, item_type: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      item_type: event.target.value,
+                    }))
+                  }
                 >
                   <option value="album">Album</option>
                   <option value="track">Song</option>
@@ -426,9 +425,12 @@ function SearchPage({
                 <input
                   type="text"
                   value={contributionForm.item_name}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, item_name: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      item_name: event.target.value,
+                    }))
+                  }
                   placeholder="Name"
                   required
                 />
@@ -438,9 +440,12 @@ function SearchPage({
                 <input
                   type="text"
                   value={contributionForm.artist_name}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, artist_name: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      artist_name: event.target.value,
+                    }))
+                  }
                   placeholder="Artist (optional)"
                 />
               </label>
@@ -449,9 +454,12 @@ function SearchPage({
                 <input
                   type="date"
                   value={contributionForm.release_date}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, release_date: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      release_date: event.target.value,
+                    }))
+                  }
                 />
               </label>
               <label>
@@ -459,9 +467,12 @@ function SearchPage({
                 <input
                   type="url"
                   value={contributionForm.image_url}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, image_url: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      image_url: event.target.value,
+                    }))
+                  }
                   placeholder="https://..."
                 />
               </label>
@@ -469,23 +480,28 @@ function SearchPage({
                 Notes
                 <textarea
                   value={contributionForm.notes}
-                  onChange={(event) => {
-                    setContributionForm((prev) => ({ ...prev, notes: event.target.value }));
-                  }}
+                  onChange={(event) =>
+                    setContributionForm((prev) => ({
+                      ...prev,
+                      notes: event.target.value,
+                    }))
+                  }
                   placeholder="Optional context or source"
                 />
               </label>
-              {contributionError ? <p className="authError">{contributionError}</p> : null}
-              {contributionSuccess ? <p className="contributionSuccess">{contributionSuccess}</p> : null}
+              {contributionError ? (
+                <p className="authError">{contributionError}</p>
+              ) : null}
+              {contributionSuccess ? (
+                <p className="contributionSuccess">{contributionSuccess}</p>
+              ) : null}
               <div className="contributionActions">
                 <button type="submit" disabled={contributionSaving}>
                   {contributionSaving ? "Submitting..." : "Submit"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setContributionOpen(false);
-                  }}
+                  onClick={() => setContributionOpen(false)}
                   disabled={contributionSaving}
                 >
                   Close

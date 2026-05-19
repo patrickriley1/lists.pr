@@ -1,38 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { useData } from "./context/DataContext";
+import { useAsync } from "./hooks/useAsync";
 import ArtistLinks from "./artist-links";
 import "./user.css";
 
-function UserPage({ canUseApp, getUserProfile }) {
+function UserPage() {
   const { username } = useParams();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { canUseApp } = useAuth();
+  const { getUserProfile } = useData();
   const [activeListId, setActiveListId] = useState(null);
 
-  useEffect(() => {
-    if (!canUseApp || !username) return;
-
-    setLoading(true);
-    setError("");
-    setProfile(null);
-    setActiveListId(null);
-
-    getUserProfile(username)
-      .then((data) => {
-        if (!data) {
-          setError("User not found.");
-          return;
-        }
-        setProfile(data);
-      })
-      .catch(() => {
-        setError("Could not load user page.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [canUseApp, getUserProfile, username]);
+  const {
+    data: profile,
+    loading,
+    error: loadError,
+  } = useAsync(
+    () =>
+      canUseApp && username ? getUserProfile(username) : Promise.resolve(null),
+    [canUseApp, username]
+  );
 
   const activeList = useMemo(
     () => (profile?.lists || []).find((list) => list.id === activeListId) || null,
@@ -45,7 +33,7 @@ function UserPage({ canUseApp, getUserProfile }) {
 
   return (
     <div className="userPage">
-      {!loading && !error && profile ? (
+      {!loading && !loadError && profile ? (
         <div className="userHeader">
           {profile.user?.profile_image_url ? (
             <img
@@ -65,9 +53,9 @@ function UserPage({ canUseApp, getUserProfile }) {
       )}
 
       {loading ? <p>Loading user...</p> : null}
-      {error ? <p className="authError">{error}</p> : null}
+      {loadError ? <p className="authError">{loadError}</p> : null}
 
-      {!loading && !error && profile ? (
+      {!loading && !loadError && profile ? (
         <div className="userGrid">
           <div className="userColumn">
             <h3>Lists</h3>
@@ -151,23 +139,35 @@ function UserPage({ canUseApp, getUserProfile }) {
             <div className="userReviews">
               {(profile.ratings || []).map((entry) => (
                 <div key={entry.id} className="userReviewCard">
-                  {entry.image_url ? <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} /> : <div className="userItemPlaceholder" />}
+                  {entry.image_url ? (
+                    <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} />
+                  ) : (
+                    <div className="userItemPlaceholder" />
+                  )}
                   <div>
                     <p className="userReviewItem">
                       {entry.item_type === "artist" ? (
-                        <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        <Link to={`/artist/${entry.item_id}`}>
+                          {entry.item_name || "Unknown Item"}
+                        </Link>
                       ) : entry.item_type === "album" ? (
-                        <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                        <Link to={`/album/${entry.item_id}`}>
+                          {entry.item_name || "Unknown Item"}
+                        </Link>
                       ) : (
                         entry.item_name || "Unknown Item"
                       )}
                     </p>
                     <p>
-                      {entry.item_type === "artist"
-                        ? entry.item_subtitle || ""
-                        : <ArtistLinks text={entry.item_subtitle || ""} />}
+                      {entry.item_type === "artist" ? (
+                        entry.item_subtitle || ""
+                      ) : (
+                        <ArtistLinks text={entry.item_subtitle || ""} />
+                      )}
                     </p>
-                    {entry.review_title ? <p className="userReviewTitle">{entry.review_title}</p> : null}
+                    {entry.review_title ? (
+                      <p className="userReviewTitle">{entry.review_title}</p>
+                    ) : null}
                     {entry.review_body ? <p>{entry.review_body}</p> : null}
                     <p>Rating: {entry.rating}/10</p>
                   </div>

@@ -1,15 +1,25 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { useData } from "./context/DataContext";
 import "./settings.css";
 
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
 
-function SettingsPage({ canUseApp, authUser, updateCurrentUserProfile }) {
+function SettingsPage() {
+  const { canUseApp, authUser } = useAuth();
+  const { updateCurrentUserProfile } = useData();
+
   const [username, setUsername] = useState("");
   const [profileImageUrl, setProfileImageUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    setUsername(authUser?.username || "");
+    setProfileImageUrl(authUser?.profile_image_url || "");
+  }, [authUser]);
 
   function handleProfileImageUpload(file) {
     if (!file) return;
@@ -40,11 +50,6 @@ function SettingsPage({ canUseApp, authUser, updateCurrentUserProfile }) {
     };
     reader.readAsDataURL(file);
   }
-
-  useEffect(() => {
-    setUsername(authUser?.username || "");
-    setProfileImageUrl(authUser?.profile_image_url || "");
-  }, [authUser]);
 
   if (!canUseApp) {
     return <Navigate to="/" replace />;
@@ -113,9 +118,15 @@ function SettingsPage({ canUseApp, authUser, updateCurrentUserProfile }) {
 
         <div className="settingsAvatarPreviewWrap">
           {profileImageUrl ? (
-            <img src={profileImageUrl} alt="Profile preview" className="settingsAvatarPreview" />
+            <img
+              src={profileImageUrl}
+              alt="Profile preview"
+              className="settingsAvatarPreview"
+            />
           ) : (
-            <div className="settingsAvatarPreview placeholder">{username?.[0]?.toUpperCase() || "U"}</div>
+            <div className="settingsAvatarPreview placeholder">
+              {username?.[0]?.toUpperCase() || "U"}
+            </div>
           )}
         </div>
 

@@ -1,21 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import { useData } from "./context/DataContext";
 import ArtistLinks from "./artist-links";
 import "./library.css";
 
-function LibraryPage({
-  canUseApp,
-  userLists,
-  setUserLists,
-  renameList,
-  deleteList,
-  reorderListItems,
-  removeItemFromList,
-  reviewEntries,
-  listenLaterItems,
-  removeListenLaterItem,
-  openReviewEditor,
-}) {
+function LibraryPage() {
+  const { canUseApp } = useAuth();
+  const {
+    userLists,
+    setUserLists,
+    renameList,
+    deleteList,
+    reorderListItems,
+    removeItemFromList,
+    reviewEntries,
+    listenLaterItems,
+    removeListenLaterItem,
+    openReviewEditor,
+  } = useData();
+
   const [activeListId, setActiveListId] = useState(null);
   const [draggingItemId, setDraggingItemId] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -59,8 +63,11 @@ function LibraryPage({
   }, [editOrderIds]);
 
   async function applyReorderedItems(listId, reorderedItems) {
-    setUserLists((prev) => prev.map((entry) => (entry.id === listId ? { ...entry, items: reorderedItems } : entry)));
-
+    setUserLists((prev) =>
+      prev.map((entry) =>
+        entry.id === listId ? { ...entry, items: reorderedItems } : entry
+      )
+    );
     await reorderListItems(
       listId,
       reorderedItems.map((entry) => entry.id)
@@ -71,7 +78,6 @@ function LibraryPage({
     const fromIndex = ids.indexOf(movingId);
     const toIndex = ids.indexOf(targetId);
     if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return ids;
-
     const next = [...ids];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
@@ -81,8 +87,9 @@ function LibraryPage({
   async function finishPointerReorder(listId, orderedIds) {
     const list = userLists.find((entry) => entry.id === listId);
     if (!list) return;
-
-    const sortedItems = [...(list.items || [])].sort((a, b) => (a.position || 0) - (b.position || 0));
+    const sortedItems = [...(list.items || [])].sort(
+      (a, b) => (a.position || 0) - (b.position || 0)
+    );
     const byId = new Map(sortedItems.map((entry) => [entry.id, entry]));
     const reorderedItems = orderedIds
       .map((id, index) => {
@@ -91,9 +98,7 @@ function LibraryPage({
         return { ...item, position: index + 1 };
       })
       .filter(Boolean);
-
     if (reorderedItems.length !== sortedItems.length) return;
-
     await applyReorderedItems(listId, reorderedItems);
   }
 
@@ -103,18 +108,6 @@ function LibraryPage({
     setDraggingItemId(itemId);
   }
 
-  if (!canUseApp) {
-    return <Navigate to="/" replace />;
-  }
-
-  const sortedLists = [...userLists].sort((a, b) => a.id - b.id);
-  const previewsPerRow = 4;
-  const listRows = [];
-
-  for (let index = 0; index < sortedLists.length; index += previewsPerRow) {
-    listRows.push(sortedLists.slice(index, index + previewsPerRow));
-  }
-
   useEffect(() => {
     if (!isEditing || !draggingItemId || !activeListId) return;
 
@@ -122,10 +115,8 @@ function LibraryPage({
       const targetElement = document.elementFromPoint(event.clientX, event.clientY);
       const row = targetElement?.closest?.("[data-edit-item-id]");
       if (!row) return;
-
       const targetId = Number(row.getAttribute("data-edit-item-id"));
       if (!targetId || targetId === draggingItemId) return;
-
       setEditOrderIds((prev) => reorderIdList(prev, draggingItemId, targetId));
     }
 
@@ -133,12 +124,11 @@ function LibraryPage({
       const startOrder = dragStartOrderRef.current;
       const finalOrder = editOrderIdsRef.current;
       const changed =
-        startOrder.length === finalOrder.length && startOrder.some((id, index) => id !== finalOrder[index]);
-
+        startOrder.length === finalOrder.length &&
+        startOrder.some((id, index) => id !== finalOrder[index]);
       if (changed) {
         void finishPointerReorder(activeListId, finalOrder);
       }
-
       setDraggingItemId(null);
     }
 
@@ -153,6 +143,17 @@ function LibraryPage({
     };
   }, [activeListId, draggingItemId, isEditing, userLists]);
 
+  if (!canUseApp) {
+    return <Navigate to="/" replace />;
+  }
+
+  const sortedLists = [...userLists].sort((a, b) => a.id - b.id);
+  const previewsPerRow = 4;
+  const listRows = [];
+  for (let index = 0; index < sortedLists.length; index += previewsPerRow) {
+    listRows.push(sortedLists.slice(index, index + previewsPerRow));
+  }
+
   function renderActiveListPanel() {
     if (!activeList) return null;
 
@@ -161,28 +162,16 @@ function LibraryPage({
         <div className="selectedListHeader">
           <h3>{activeList.name}</h3>
           <div className="selectedListActions">
-            <button
-              type="button"
-              onClick={() => {
-                void renameList(activeList.id);
-              }}
-            >
+            <button type="button" onClick={() => void renameList(activeList.id)}>
               Rename
             </button>
             <button
               type="button"
-              onClick={() => {
-                setIsEditing((prev) => !prev);
-              }}
+              onClick={() => setIsEditing((prev) => !prev)}
             >
               {isEditing ? "Done" : "Edit"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                void deleteList(activeList.id);
-              }}
-            >
+            <button type="button" onClick={() => void deleteList(activeList.id)}>
               Delete
             </button>
           </div>
@@ -196,91 +185,90 @@ function LibraryPage({
                   .map((id) => sortedActiveItems.find((entry) => entry.id === id))
                   .filter(Boolean)
               : sortedActiveItems
-            )
-              .map((item, index) => (
-                isEditing ? (
-                  <div
-                    key={item.id}
-                    className={`editListRow ${draggingItemId === item.id ? "dragging" : ""}`}
-                    data-edit-item-id={item.id}
-                  >
-                    <span className="listItemPosition">{index + 1}</span>
-                    {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.item_name}
-                        className="editListThumb"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="editListThumb placeholder" />
-                    )}
-                    <p className="editListItemName">{item.item_name}</p>
-                    <div className="editListRight">
-                      <button
-                        type="button"
-                        className="dragHandleButton"
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          startPointerDrag(item.id);
-                        }}
-                        aria-label={`Reorder ${item.item_name}`}
-                        title="Drag to reorder"
-                      >
-                        ≡
-                      </button>
-                      <button
-                        type="button"
-                        className="removeRowButton"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          void removeItemFromList(activeList.id, item.id);
-                        }}
-                        aria-label={`Remove ${item.item_name} from ${activeList.name}`}
-                        title="Remove from list"
-                      >
-                        -
-                      </button>
-                    </div>
+            ).map((item, index) =>
+              isEditing ? (
+                <div
+                  key={item.id}
+                  className={`editListRow ${draggingItemId === item.id ? "dragging" : ""}`}
+                  data-edit-item-id={item.id}
+                >
+                  <span className="listItemPosition">{index + 1}</span>
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.item_name}
+                      className="editListThumb"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="editListThumb placeholder" />
+                  )}
+                  <p className="editListItemName">{item.item_name}</p>
+                  <div className="editListRight">
+                    <button
+                      type="button"
+                      className="dragHandleButton"
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        startPointerDrag(item.id);
+                      }}
+                      aria-label={`Reorder ${item.item_name}`}
+                      title="Drag to reorder"
+                    >
+                      ≡
+                    </button>
+                    <button
+                      type="button"
+                      className="removeRowButton"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void removeItemFromList(activeList.id, item.id);
+                      }}
+                      aria-label={`Remove ${item.item_name} from ${activeList.name}`}
+                      title="Remove from list"
+                    >
+                      -
+                    </button>
                   </div>
-                ) : (
-                  <div key={item.id} className="myListItem listItemCard readonly">
-                    <span className="listItemPosition">{index + 1}</span>
-                    {item.image_url ? (
-                      item.item_type === "album" || item.item_type === "artist" ? (
-                        <Link to={`/${item.item_type}/${item.item_id}`}>
-                          <img
-                            src={item.image_url}
-                            alt={item.item_name}
-                            className="listItemImage"
-                            draggable={false}
-                          />
-                        </Link>
-                      ) : (
+                </div>
+              ) : (
+                <div key={item.id} className="myListItem listItemCard readonly">
+                  <span className="listItemPosition">{index + 1}</span>
+                  {item.image_url ? (
+                    item.item_type === "album" || item.item_type === "artist" ? (
+                      <Link to={`/${item.item_type}/${item.item_id}`}>
                         <img
                           src={item.image_url}
                           alt={item.item_name}
                           className="listItemImage"
                           draggable={false}
                         />
-                      )
+                      </Link>
                     ) : (
-                      <div className="listItemImage placeholder" />
+                      <img
+                        src={item.image_url}
+                        alt={item.item_name}
+                        className="listItemImage"
+                        draggable={false}
+                      />
+                    )
+                  ) : (
+                    <div className="listItemImage placeholder" />
+                  )}
+                  <p>
+                    {item.item_type === "artist" ? (
+                      <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
+                    ) : item.item_type === "album" ? (
+                      <Link to={`/album/${item.item_id}`}>{item.item_name}</Link>
+                    ) : (
+                      item.item_name
                     )}
-                    <p>
-                      {item.item_type === "artist" ? (
-                        <Link to={`/artist/${item.item_id}`}>{item.item_name}</Link>
-                      ) : item.item_type === "album" ? (
-                        <Link to={`/album/${item.item_id}`}>{item.item_name}</Link>
-                      ) : (
-                        item.item_name
-                      )}
-                    </p>
-                  </div>
-                )
-              ))}
+                  </p>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>
@@ -314,12 +302,16 @@ function LibraryPage({
                           tabIndex={0}
                           className={`listPreviewCard ${activeListId === list.id ? "active" : ""}`}
                           onClick={() =>
-                            list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id)
+                            list.id === activeListId
+                              ? setActiveListId(null)
+                              : setActiveListId(list.id)
                           }
                           onKeyDown={(event) => {
                             if (event.key !== "Enter" && event.key !== " ") return;
                             event.preventDefault();
-                            list.id === activeListId ? setActiveListId(null) : setActiveListId(list.id);
+                            list.id === activeListId
+                              ? setActiveListId(null)
+                              : setActiveListId(list.id);
                           }}
                         >
                           <div className="listPreviewHeader">
@@ -361,28 +353,37 @@ function LibraryPage({
             ) : (
               <div className="myListItems">
                 {listenLaterItems.map((entry) => (
-                  <div key={`${entry.item_type}:${entry.item_id}`} className="myListItem reviewCard listenLaterCard">
+                  <div
+                    key={`${entry.item_type}:${entry.item_id}`}
+                    className="myListItem reviewCard listenLaterCard"
+                  >
                     {entry.image_url ? (
-                      <img src={entry.image_url} alt={entry.item_name || "Listen later item"} className="reviewImage" />
+                      <img
+                        src={entry.image_url}
+                        alt={entry.item_name || "Listen later item"}
+                        className="reviewImage"
+                      />
                     ) : (
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
                       <p className="reviewItemName">
                         {entry.item_type === "album" ? (
-                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                          <Link to={`/album/${entry.item_id}`}>
+                            {entry.item_name || "Unknown Item"}
+                          </Link>
                         ) : (
                           entry.item_name || "Unknown Item"
                         )}
                       </p>
-                      <p><ArtistLinks text={entry.item_subtitle || ""} /></p>
+                      <p>
+                        <ArtistLinks text={entry.item_subtitle || ""} />
+                      </p>
                     </div>
                     <button
                       type="button"
                       className="removeListenLaterButton"
-                      onClick={() => {
-                        void removeListenLaterItem(entry.id);
-                      }}
+                      onClick={() => void removeListenLaterItem(entry.id)}
                       aria-label={`Remove ${entry.item_name} from listen later`}
                     >
                       Remove
@@ -397,27 +398,16 @@ function LibraryPage({
             <div className="reviewsHeaderRow">
               <h3>My Reviews</h3>
               <div className="reviewsTypeSelector">
-                <button
-                  type="button"
-                  className={reviewTypeFilter === "album" ? "active" : ""}
-                  onClick={() => setReviewTypeFilter("album")}
-                >
-                  Albums
-                </button>
-                <button
-                  type="button"
-                  className={reviewTypeFilter === "track" ? "active" : ""}
-                  onClick={() => setReviewTypeFilter("track")}
-                >
-                  Songs
-                </button>
-                <button
-                  type="button"
-                  className={reviewTypeFilter === "artist" ? "active" : ""}
-                  onClick={() => setReviewTypeFilter("artist")}
-                >
-                  Artists
-                </button>
+                {["album", "track", "artist"].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={reviewTypeFilter === type ? "active" : ""}
+                    onClick={() => setReviewTypeFilter(type)}
+                  >
+                    {type === "album" ? "Albums" : type === "track" ? "Songs" : "Artists"}
+                  </button>
+                ))}
               </div>
             </div>
             {filteredReviews.length === 0 ? (
@@ -425,29 +415,46 @@ function LibraryPage({
             ) : (
               <div className="myListItems">
                 {filteredReviews.map((entry) => (
-                  <div key={`${entry.item_type || "album"}:${entry.item_id || entry.album_id}`} className="myListItem reviewCard">
+                  <div
+                    key={`${entry.item_type || "album"}:${entry.item_id || entry.album_id}`}
+                    className="myListItem reviewCard"
+                  >
                     {entry.image_url ? (
-                      <img src={entry.image_url} alt={entry.item_name || "Reviewed item"} className="reviewImage" />
+                      <img
+                        src={entry.image_url}
+                        alt={entry.item_name || "Reviewed item"}
+                        className="reviewImage"
+                      />
                     ) : (
                       <div className="reviewImage placeholder" />
                     )}
                     <div className="reviewBody">
                       <p className="reviewItemName">
                         {entry.item_type === "artist" ? (
-                          <Link to={`/artist/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                          <Link to={`/artist/${entry.item_id}`}>
+                            {entry.item_name || "Unknown Item"}
+                          </Link>
                         ) : entry.item_type === "album" ? (
-                          <Link to={`/album/${entry.item_id}`}>{entry.item_name || "Unknown Item"}</Link>
+                          <Link to={`/album/${entry.item_id}`}>
+                            {entry.item_name || "Unknown Item"}
+                          </Link>
                         ) : (
                           entry.item_name || "Unknown Item"
                         )}
                       </p>
                       <p>
-                        {entry.item_type === "artist"
-                          ? entry.item_subtitle || "Artist"
-                          : <ArtistLinks text={entry.item_subtitle || ""} />}
+                        {entry.item_type === "artist" ? (
+                          entry.item_subtitle || "Artist"
+                        ) : (
+                          <ArtistLinks text={entry.item_subtitle || ""} />
+                        )}
                       </p>
-                      {entry.review_title ? <p className="reviewTitle">{entry.review_title}</p> : null}
-                      {entry.review_body ? <p className="reviewText">{entry.review_body}</p> : null}
+                      {entry.review_title ? (
+                        <p className="reviewTitle">{entry.review_title}</p>
+                      ) : null}
+                      {entry.review_body ? (
+                        <p className="reviewText">{entry.review_body}</p>
+                      ) : null}
                       <p>Rating: {entry.rating}/10</p>
                     </div>
                     <button
@@ -457,12 +464,13 @@ function LibraryPage({
                         const itemType = entry.item_type || "album";
                         const itemId = entry.item_id || entry.album_id;
                         if (!itemId) return;
-
                         openReviewEditor({
                           item_type: itemType,
                           item_id: itemId,
                           item_name: entry.item_name || "Unknown Item",
-                          item_subtitle: entry.item_subtitle || (itemType === "artist" ? "Artist" : ""),
+                          item_subtitle:
+                            entry.item_subtitle ||
+                            (itemType === "artist" ? "Artist" : ""),
                           image_url: entry.image_url || null,
                         });
                       }}
